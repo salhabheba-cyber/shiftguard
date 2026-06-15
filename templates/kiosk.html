@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>{{ theme.logo_text }} — Attendance</title>
+<link rel="stylesheet" href="/static/css/main.css">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#00A8A8">
+<style>
+  :root{
+    --primary:#{{ theme.primary }};
+    --secondary:#{{ theme.secondary }};
+    --accent:#{{ theme.accent }};
+    --dark:#{{ theme.dark }};
+    --text:#{{ theme.text }};
+    --font:'{{ theme.font }}','Segoe UI',sans-serif;
+  }
+  body{font-family:var(--font){% if theme.dark_mode == '1' %};filter:invert(1) hue-rotate(180deg){% endif %}}
+</style>
+</head>
+<body>
+<div class="kiosk-wrap">
+
+  <!-- HEADER -->
+  <header class="kiosk-header">
+    <img src="/static/images/myspa_logo.jpg" class="kiosk-logo" onerror="this.style.display='none'" alt="MySpa">
+    <h1>{{ theme.logo_text }}</h1>
+    <div class="kiosk-sub">Employee Attendance System</div>
+    <div class="kiosk-clock" id="clock">00:00:00</div>
+    <div style="font-size:.8rem;color:#78909c;margin-top:.2rem">{{ today }}</div>
+  </header>
+
+  <main class="kiosk-main">
+
+    {% if branches|length > 1 %}
+    <div style="width:100%;max-width:480px">
+      <select class="branch-sel" id="branch-sel" onchange="branchId=parseInt(this.value)||0">
+        {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="stat-card">
+      <div class="stat-num" id="cnt">{{ checked_in_count }}</div>
+      <div class="stat-lbl">Employees Checked In</div>
+    </div>
+
+    <!-- STEP 1: SEARCH -->
+    <div class="kiosk-card" id="s-search">
+      <h2>Select Your Name</h2>
+      <div class="search-wrap">
+        <input type="text" id="emp-search" class="search-input"
+               placeholder="Start typing your name..." autocomplete="off" autocorrect="off">
+        <div id="suggestions" class="suggestions"></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: ACTION -->
+    <div class="kiosk-card" id="s-action" style="display:none">
+      <div class="sel-emp">
+        <div class="sel-name" id="sel-name"></div>
+        <div class="sel-shift" id="sel-shift"></div>
+      </div>
+      <h2>What would you like to do?</h2>
+      <div class="action-btns">
+        <button class="btn-action btn-checkin" onclick="chooseAction('in')">🌸 Check In</button>
+        <button class="btn-action btn-checkout" onclick="chooseAction('out')">👋 Check Out</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: PIN -->
+    <div class="kiosk-card" id="s-pin" style="display:none">
+      <h2 id="pin-title">Enter Your PIN</h2>
+      <input type="password" id="pin-disp" class="pin-display" maxlength="4" readonly placeholder="••••">
+      <div class="pin-pad" style="max-width:280px;margin:0 auto">
+        <button class="pin-btn" onclick="pd('1')">1</button>
+        <button class="pin-btn" onclick="pd('2')">2</button>
+        <button class="pin-btn" onclick="pd('3')">3</button>
+        <button class="pin-btn" onclick="pd('4')">4</button>
+        <button class="pin-btn" onclick="pd('5')">5</button>
+        <button class="pin-btn" onclick="pd('6')">6</button>
+        <button class="pin-btn" onclick="pd('7')">7</button>
+        <button class="pin-btn" onclick="pd('8')">8</button>
+        <button class="pin-btn" onclick="pd('9')">9</button>
+        <button class="pin-btn del" onclick="pc()">⌫</button>
+        <button class="pin-btn" onclick="pd('0')">0</button>
+        <button class="pin-btn ok" id="ok-btn" onclick="submitPin()" disabled>✓</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: CAMERA -->
+    <div class="kiosk-card" id="s-camera" style="display:none">
+      <div class="camera-section">
+        <div class="camera-label" id="cam-label">📸 Smile! Photo in...</div>
+        <div class="countdown" id="countdown" style="display:none"></div>
+        <video id="cam-preview" autoplay playsinline muted></video>
+        <canvas id="cam-canvas" width="320" height="240"></canvas>
+        <div id="cam-err" class="camera-err" style="display:none">
+          ⚠️ Camera unavailable. Proceeding without photo.
+          <br><button class="btn btn-primary" style="margin-top:.5rem" onclick="skipCamera()">Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5: RESULT -->
+    <div id="s-result" style="display:none;width:100%;max-width:480px">
+      <div class="result-box" id="result-box">
+        <div class="result-emoji" id="r-emoji">🌸</div>
+        <div class="result-text" id="r-text"></div>
+        <div class="result-time" id="r-time"></div>
+        <img id="r-photo" class="result-photo" style="display:none" alt="Your photo">
+      </div>
+    </div>
+
+    <div id="inline-err" class="inline-err"></div>
+
+  </main>
+
+  <footer class="kiosk-footer">
+    <button class="btn-back" onclick="reset()">← Back</button>
+    <div class="footer-info">
+      <span>{{ theme.logo_text }}</span>
+      <span class="online-dot">● Online</span>
+    </div>
+  </footer>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <span class="lightbox-close">×</span>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+let selId=null, selName='', action=null, pin='', branchId=0;
+let camStream=null, capturedPhoto=null;
+
+// ── CLOCK ────────────────────────────────────────────────────────────────────
+function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    String(n.getHours()).padStart(2,'0')+':'+
+    String(n.getMinutes()).padStart(2,'0')+':'+
+    String(n.getSeconds()).padStart(2,'0');
+}
+setInterval(tick,1000); tick();
+
+// ── STATUS REFRESH ───────────────────────────────────────────────────────────
+async function refreshCnt(){
+  try{
+    const r=await fetch('/api/kiosk/status'+(branchId?`?branch_id=${branchId}`:''));
+    const d=await r.json();
+    document.getElementById('cnt').textContent=d.checked_in_count;
+  }catch(e){}
+}
+setInterval(refreshCnt,10000);
+
+// ── SEARCH ───────────────────────────────────────────────────────────────────
+document.getElementById('emp-search').addEventListener('input', async e=>{
+  const q=e.target.value.trim();
+  const box=document.getElementById('suggestions');
+  if(!q){box.innerHTML='';return;}
+  const r=await fetch(`/api/kiosk/search?q=${encodeURIComponent(q)}`+(branchId?`&branch_id=${branchId}`:''));
+  const d=await r.json();
+  box.innerHTML=(d.employees||[]).map(em=>
+    `<div class="suggestion-item" onclick="selectEmp(${em.id},'${em.name.replace(/'/g,"\\'")}','${em.shift_start}','${em.shift_end}','${em.position||''}')">
+      <strong>${em.name}</strong>
+      <small>${em.position?em.position+' · ':''}${em.shift_start} – ${em.shift_end}</small>
+    </div>`).join('')||'<div style="padding:.9rem;color:#78909c">No results</div>';
+});
+
+function selectEmp(id,name,ss,se,pos){
+  selId=id; selName=name;
+  document.getElementById('sel-name').textContent=name;
+  document.getElementById('sel-shift').textContent=(pos?pos+' · ':'')+ss+' – '+se;
+  document.getElementById('suggestions').innerHTML='';
+  document.getElementById('emp-search').value='';
+  show('s-search',false); show('s-action',true);
+  clearErr();
+}
+
+// ── ACTION ───────────────────────────────────────────────────────────────────
+function chooseAction(a){
+  action=a;
+  document.getElementById('pin-title').textContent=
+    a==='in'?'🌸 Check In — Enter PIN':'👋 Check Out — Enter PIN';
+  pin=''; upPin();
+  show('s-action',false); show('s-pin',true);
+}
+
+// ── PIN ──────────────────────────────────────────────────────────────────────
+function pd(d){if(pin.length<4){pin+=d;upPin();if(pin.length===4){document.getElementById('ok-btn').disabled=false;document.getElementById('ok-btn').classList.add('ready');}}}
+function pc(){pin='';upPin();document.getElementById('ok-btn').disabled=true;document.getElementById('ok-btn').classList.remove('ready');}
+function upPin(){document.getElementById('pin-disp').value='•'.repeat(pin.length);}
+
+document.addEventListener('keydown',e=>{
+  if(!show_s('s-pin')) return;
+  if(e.key>='0'&&e.key<='9') pd(e.key);
+  else if(e.key==='Backspace') pc();
+  else if(e.key==='Enter'&&pin.length===4) submitPin();
+});
+
+function submitPin(){
+  if(pin.length!==4) return;
+  clearErr();
+  show('s-pin',false);
+  startCamera();
+}
+
+// ── CAMERA ───────────────────────────────────────────────────────────────────
+async function startCamera(){
+  show('s-camera',true);
+  document.getElementById('countdown').style.display='none';
+  document.getElementById('cam-label').textContent='📸 Smile! Photo in...';
+  document.getElementById('cam-err').style.display='none';
+  capturedPhoto=null;
+
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    const vid=document.getElementById('cam-preview');
+    vid.srcObject=camStream;
+    await vid.play();
+    // Start countdown after 500ms (camera warms up)
+    setTimeout(startCountdown, 500);
+  }catch(err){
+    console.warn('Camera error:',err);
+    document.getElementById('cam-preview').style.display='none';
+    document.getElementById('cam-err').style.display='block';
+  }
+}
+
+function startCountdown(){
+  const cdEl=document.getElementById('countdown');
+  cdEl.style.display='block';
+  document.getElementById('cam-label').textContent='📸 Look at the camera!';
+  let count=3;
+  cdEl.textContent=count;
+  const iv=setInterval(()=>{
+    count--;
+    if(count>0){cdEl.textContent=count;}
+    else{clearInterval(iv);capturePhoto();}
+  },1000);
+}
+
+function capturePhoto(){
+  const vid=document.getElementById('cam-preview');
+  const canvas=document.getElementById('cam-canvas');
+  const ctx=canvas.getContext('2d');
+  canvas.width=vid.videoWidth||320;
+  canvas.height=vid.videoHeight||240;
+  ctx.drawImage(vid,0,0,canvas.width,canvas.height);
+  capturedPhoto=canvas.toDataURL('image/jpeg',0.85);
+  stopCamera();
+  document.getElementById('countdown').style.display='none';
+  document.getElementById('cam-label').textContent='✅ Photo taken!';
+  // Show preview briefly then submit
+  setTimeout(()=>doCheckInOut('ok'),600);
+}
+
+function skipCamera(){
+  stopCamera();
+  doCheckInOut('no_camera');
+}
+
+function stopCamera(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+}
+
+// ── SUBMIT ───────────────────────────────────────────────────────────────────
+async function doCheckInOut(photoStatus){
+  const endpoint=action==='in'?'/api/kiosk/checkin':'/api/kiosk/checkout';
+  try{
+    const r=await fetch(endpoint,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        employee_id:selId,
+        pin:pin,
+        photo:capturedPhoto||null,
+        photo_status:photoStatus
+      })
+    });
+    const d=await r.json();
+    show('s-camera',false);
+    if(d.success){
+      document.getElementById('r-emoji').textContent=action==='in'?'🌸':'👋';
+      document.getElementById('r-text').textContent=d.message;
+      document.getElementById('r-time').textContent='Time: '+d.time;
+      const ph=document.getElementById('r-photo');
+      if(d.photo_path){ph.src=d.photo_path;ph.style.display='block';}
+      else ph.style.display='none';
+      document.getElementById('result-box').style.background=
+        action==='in'?'linear-gradient(135deg,#27ae60,#1e8449)':
+                       'linear-gradient(135deg,#00A8A8,#1a8a8e)';
+      show('s-result',true);
+      refreshCnt();
+      setTimeout(reset,5000);
+    }else{
+      showErr(d.message||'Error. Try again.');
+      pin='';upPin();
+      document.getElementById('ok-btn').disabled=true;
+      document.getElementById('ok-btn').classList.remove('ready');
+      show('s-pin',true);
+    }
+  }catch(e){
+    show('s-camera',false);
+    showErr('Network error. Please try again.');
+    show('s-pin',true);
+  }
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function show(id,v){const el=document.getElementById(id);if(el)el.style.display=v?'block':'none';}
+function show_s(id){const el=document.getElementById(id);return el&&el.style.display!=='none';}
+function showErr(m){const el=document.getElementById('inline-err');el.textContent=m;el.style.display='block';}
+function clearErr(){const el=document.getElementById('inline-err');el.style.display='none';}
+
+function reset(){
+  stopCamera();
+  selId=null;selName='';action=null;pin='';capturedPhoto=null;
+  show('s-search',true);show('s-action',false);
+  show('s-pin',false);show('s-camera',false);show('s-result',false);
+  clearErr();
+  document.getElementById('emp-search').value='';
+  document.getElementById('suggestions').innerHTML='';
+  document.getElementById('ok-btn').disabled=true;
+  document.getElementById('ok-btn').classList.remove('ready');
+  document.getElementById('cam-preview').style.display='block';
+}
+
+// Auto-reset on inactivity
+let timer;
+function rTimer(){clearTimeout(timer);timer=setTimeout(reset,30000);}
+document.addEventListener('click',rTimer);document.addEventListener('touchstart',rTimer);rTimer();
+
+// PWA
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>

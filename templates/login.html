@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ theme.logo_text }} — Admin Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'{{ theme.font }}','Segoe UI',sans-serif;background:linear-gradient(135deg,#{{ theme.dark }},#{{ theme.primary }});min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#fff;padding:2.5rem;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:380px;text-align:center}
+.logo{width:96px;height:96px;object-fit:contain;border-radius:50%;margin-bottom:.8rem;border:2px solid #e0e0e0}
+h1{color:#{{ theme.primary }};font-size:1.5rem;font-weight:300;letter-spacing:3px;text-transform:uppercase;margin-bottom:.15rem}
+.sub{color:#78909c;font-size:.78rem;letter-spacing:1px;margin-bottom:1.8rem}
+.fg{margin-bottom:1.1rem;text-align:left}
+.fg label{display:block;margin-bottom:.3rem;font-weight:600;color:#2d4a4b;font-size:.86rem}
+.fg input{width:100%;padding:.8rem;border:1.5px solid #c8e8e8;border-radius:8px;font-size:.95rem;outline:none;transition:.2s}
+.fg input:focus{border-color:#{{ theme.primary }};box-shadow:0 0 0 3px rgba(0,168,168,.12)}
+.btn{width:100%;padding:.9rem;background:#{{ theme.primary }};color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;letter-spacing:.5px;transition:.2s;margin-top:.3rem}
+.btn:hover{background:#{{ theme.accent }};transform:translateY(-1px)}
+.err{background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:.8rem;border-radius:8px;margin-bottom:1rem;display:none;font-size:.87rem}
+.err.show{display:block}
+.kiosk-link{display:block;margin-top:1.2rem;color:#{{ theme.primary }};font-size:.85rem;text-decoration:none}
+.kiosk-link:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="/static/images/myspa_logo.jpg" class="logo" onerror="this.style.display='none'" alt="MySpa">
+  <h1>{{ theme.logo_text }}</h1>
+  <p class="sub">Admin Dashboard</p>
+  <div class="err" id="err"></div>
+  <form id="frm">
+    <div class="fg"><label>Username</label><input type="text" id="u" placeholder="admin" autofocus></div>
+    <div class="fg"><label>Password</label><input type="password" id="p" placeholder="••••••••"></div>
+    <button type="submit" class="btn">Login →</button>
+  </form>
+  <a href="/kiosk" class="kiosk-link">→ Go to Kiosk</a>
+</div>
+<script>
+document.getElementById('frm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const err=document.getElementById('err');err.classList.remove('show');
+  const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:document.getElementById('u').value.trim(),
+                         password:document.getElementById('p').value})});
+  const d=await r.json();
+  if(d.success)window.location.href='/admin';
+  else{err.textContent=d.message||'Invalid credentials';err.classList.add('show');}
+});
+</script>
+</body>
+</html>

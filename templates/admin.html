@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ theme.logo_text }} — Admin</title>
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+:root{
+  --primary:#{{ theme.primary }};--secondary:#{{ theme.secondary }};
+  --accent:#{{ theme.accent }};--dark:#{{ theme.dark }};
+  --text:#{{ theme.text }};--font:'{{ theme.font }}','Segoe UI',sans-serif;
+}
+body{font-family:var(--font)}
+</style>
+</head>
+<body>
+<div class="admin-wrap">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <img src="/static/images/myspa_logo.jpg" class="sb-logo" onerror="this.style.display='none'">
+    <h2>{{ theme.logo_text }}</h2>
+    <p>Management System</p>
+  </div>
+  <nav>
+    <div class="sb-section">
+      <div class="sb-label">Main</div>
+      <a href="#" class="nav-link active" data-tab="today">📊 <span>Today</span></a>
+      <a href="#" class="nav-link" data-tab="attendance">📋 <span>Attendance</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">People</div>
+      <a href="#" class="nav-link" data-tab="employees">👥 <span>Employees</span></a>
+      <a href="#" class="nav-link" data-tab="branches">🏢 <span>Branches</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Finance</div>
+      <a href="#" class="nav-link" data-tab="salary">💰 <span>Salary</span></a>
+      <a href="#" class="nav-link" data-tab="reports">📄 <span>Reports</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">Media</div>
+      <a href="#" class="nav-link" data-tab="photos">📸 <span>Photos</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">System</div>
+      <a href="#" class="nav-link" data-tab="security">🔒 <span>Security</span></a>
+      <a href="#" class="nav-link" data-tab="settings">⚙️ <span>Settings</span></a>
+    </div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<main class="admin-main">
+  <div class="topbar">
+    <h1>🛡️ {{ theme.logo_text }}</h1>
+    <div class="topbar-right">
+      <label style="font-size:.82rem">Branch:</label>
+      <select class="branch-filter" id="g-branch" onchange="setBranch(this.value)">
+        <option value="">All Branches</option>
+        {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select>
+      <span>👤 {{ user.username }}</span>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div id="msg-ok"   class="msg msg-ok"></div>
+    <div id="msg-err"  class="msg msg-err"></div>
+    <div id="msg-info" class="msg msg-info"></div>
+
+    <!-- TODAY -->
+    <div id="today" class="tab-content active">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sico">👥</div><div class="sval" id="s-total">-</div><div class="slbl">Total Employees</div></div>
+        <div class="stat-box"><div class="sico">✅</div><div class="sval" id="s-in">-</div><div class="slbl">Checked In</div></div>
+        <div class="stat-box"><div class="sico">🏠</div><div class="sval" id="s-out">-</div><div class="slbl">Checked Out</div></div>
+        <div class="stat-box"><div class="sico">⚠️</div><div class="sval" id="s-late">-</div><div class="slbl">Late Today</div></div>
+        <div class="stat-box"><div class="sico">❌</div><div class="sval" id="s-absent">-</div><div class="slbl">Absent</div></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">📋 Today's Attendance — <span id="today-date">-</span></h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Employee</th><th>Branch</th><th>Check In</th><th>Photo</th><th>Check Out</th><th>Photo</th><th>Hours</th><th>Late</th><th>Status</th></tr></thead>
+          <tbody id="today-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div id="attendance" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">📋 Attendance Records</h3>
+        <div class="form-row" style="margin-bottom:.8rem">
+          <div class="form-group"><label>From</label><input type="date" id="att-from"></div>
+          <div class="form-group"><label>To</label><input type="date" id="att-to"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+          <button class="btn btn-primary" onclick="loadAttendance()">🔍 Search</button>
+          <button class="btn btn-dark" onclick="openAddAtt()">➕ Add Manual</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Employee</th><th>Branch</th><th>Date</th><th>Check In</th><th>In Photo</th><th>Check Out</th><th>Out Photo</th><th>Hours</th><th>Late</th><th>Status</th><th>Edit</th></tr></thead>
+          <tbody id="att-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#78909c">Search above</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- EMPLOYEES -->
+    <div id="employees" class="tab-content">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h3 class="card-title" style="margin:0">👥 Employees</h3>
+          <button class="btn btn-primary" onclick="openAddEmp()">➕ Add Employee</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Actions</th></tr></thead>
+          <tbody id="emp-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- BRANCHES -->
+    <div id="branches" class="tab-content">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h3 class="card-title" style="margin:0">🏢 Branches</h3>
+          <button class="btn btn-primary" onclick="openAddBranch()">➕ Add Branch</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="branch-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SALARY -->
+    <div id="salary" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">💰 Monthly Salary Calculator</h3>
+        <div class="form-row" style="margin-bottom:1rem">
+          <div class="form-group"><label>Month</label><input type="month" id="sal-month"></div>
+          <div class="form-group"><label>Employee (blank = all)</label>
+            <select id="sal-emp"><option value="">— All Employees —</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="calcSalary()">🧮 Calculate</button>
+        <div id="sal-results" style="margin-top:1.5rem"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">📜 Salary History</h3>
+        <div class="form-row" style="margin-bottom:1rem">
+          <div class="form-group"><label>Year</label><input type="number" id="sal-yr" placeholder="2026"></div>
+          <div class="form-group"><label>Month (1-12)</label><input type="number" id="sal-mo" placeholder="6" min="1" max="12"></div>
+        </div>
+        <button class="btn btn-dark" onclick="loadSalHistory()">📂 Load</button>
+        <div class="tbl-wrap" style="margin-top:1rem"><table class="tbl">
+          <thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Present</th><th>Absent</th><th>Late Days</th><th>OT Hours</th><th>Deductions</th><th>Net Salary</th><th>Paid</th></tr></thead>
+          <tbody id="sal-hist-tbody"><tr><td colspan="10" style="text-align:center;color:#78909c;padding:1.5rem">Enter year & month above</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="reports" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">📄 Generate Excel Reports</h3>
+        <div class="form-row" style="margin-bottom:1.5rem">
+          <div>
+            <div class="form-group"><label>Daily Report Date</label><input type="date" id="rpt-date"></div>
+            <button class="btn btn-primary" onclick="dlReport('daily')">📥 Daily Excel</button>
+          </div>
+          <div>
+            <div class="form-group"><label>Monthly Report</label><input type="month" id="rpt-month"></div>
+            <button class="btn btn-dark" onclick="dlReport('monthly')">📥 Monthly Excel</button>
+          </div>
+        </div>
+        <p style="color:#78909c;font-size:.85rem">Monthly: 3 sheets — Attendance Summary, Salary Breakdown, Daily Log.</p>
+      </div>
+      <div class="card">
+        <h3 class="card-title">💾 Database Backup</h3>
+        <p style="color:#78909c;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
+        <button class="btn btn-success" onclick="window.open('/api/admin/backup','_blank')">📥 Download Backup</button>
+      </div>
+    </div>
+
+    <!-- PHOTOS -->
+    <div id="photos" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">📸 Photo Management</h3>
+        <div class="form-row" style="margin-bottom:1rem">
+          <div class="form-group"><label>From</label><input type="date" id="ph-from"></div>
+          <div class="form-group"><label>To</label><input type="date" id="ph-to"></div>
+        </div>
+        <button class="btn btn-primary" onclick="loadPhotos()">🔍 Load Photos</button>
+        <div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-top:1.5rem"></div>
+      </div>
+    </div>
+
+    <!-- SECURITY -->
+    <div id="security" class="tab-content">
+      <!-- Network Overview -->
+      <div class="card">
+        <h3 class="card-title">📡 Network Overview</h3>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="sico">🖥️</div><div class="sval" id="n-ip" style="font-size:1.1rem">—</div><div class="slbl">Server IP (this PC)</div></div>
+          <div class="stat-box"><div class="sico">🌐</div><div class="sval" id="n-gw" style="font-size:1.1rem">—</div><div class="slbl">Router IP</div></div>
+          <div class="stat-box"><div class="sico">🔒</div><div class="sval" id="n-hosts" style="font-size:1rem">—</div><div class="slbl">Blocking Status</div></div>
+          <div class="stat-box"><div class="sico">📱</div><div class="sval" id="n-devcount">—</div><div class="slbl">Devices Found</div></div>
+        </div>
+      </div>
+
+      <!-- Scan Devices -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+          <h3 class="card-title" style="margin:0">📱 Devices on This WiFi</h3>
+          <button class="btn btn-primary" onclick="scanNetwork()">🔄 Scan Network</button>
+        </div>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Shows all phones and computers connected to the same WiFi as this computer.</p>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>IP Address</th><th>MAC Address</th><th>Hostname / Device</th><th>Type</th></tr></thead>
+          <tbody id="devices-tbody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#78909c">Click "Scan Network" to see connected devices</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <!-- Blocked Sites -->
+      <div class="card">
+        <h3 class="card-title">🚫 Blocked Websites</h3>
+        <div class="form-row" style="margin-bottom:1rem">
+          <div class="form-group"><label>Domain to Block</label><input type="text" id="new-domain" placeholder="e.g. snapchat.com"></div>
+          <div class="form-group"><label>Category</label>
+            <select id="new-cat">
+              <option value="social_media">Social Media</option>
+              <option value="entertainment">Entertainment</option>
+              <option value="video_streaming">Video Streaming</option>
+              <option value="messaging">Messaging</option>
+              <option value="restricted">Other</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem">
+          <button class="btn btn-primary" onclick="addBlocked()">➕ Add to Block List</button>
+          <button class="btn btn-danger" onclick="applyHosts()">🔒 Apply Blocking on This PC</button>
+          <button class="btn btn-outline" onclick="removeHosts()">🔓 Remove All Blocks</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Domain</th><th>Category</th><th>Action</th></tr></thead>
+          <tbody id="blocked-tbody"></tbody>
+        </table></div>
+      </div>
+
+      <!-- Router Guide -->
+      <div class="card">
+        <h3 class="card-title">📋 Block Sites on ALL Employee Phones (Router Setup)</h3>
+        <div style="background:var(--secondary);border-radius:10px;padding:1.2rem;margin-bottom:1rem">
+          <p style="font-weight:600;color:var(--dark);margin-bottom:.8rem">To block websites on ALL phones connected to spa WiFi:</p>
+          <ol style="font-size:.88rem;color:var(--text);padding-left:1.5rem;line-height:2">
+            <li>Open browser → go to <strong id="router-link">your router IP</strong></li>
+            <li>Login with router admin credentials (usually on sticker on router)</li>
+            <li>Find <strong>DNS Settings</strong> or <strong>DHCP Settings</strong></li>
+            <li>Set Primary DNS to: <strong id="dns-ip" style="color:var(--primary)">—</strong> (this computer)</li>
+            <li>Set Secondary DNS to: <strong>208.67.220.220</strong></li>
+            <li>Save and reboot router</li>
+            <li>✅ All phones on WiFi will now be blocked from the sites in your list above</li>
+          </ol>
+        </div>
+        <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;font-size:.85rem;color:#856404">
+          <strong>⚠️ Notes:</strong>
+          <ul style="padding-left:1.5rem;margin-top:.4rem;line-height:1.8">
+            <li><strong>This PC must stay ON</strong> for the DNS blocking to work on other devices</li>
+            <li>Employees can bypass by switching to mobile data (4G/5G) — that's on their own bill</li>
+            <li>"Apply Blocking on This PC" only blocks on THIS computer, not employee phones</li>
+            <li>Router DNS change blocks ALL devices on that WiFi network</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Access Logs -->
+      <div class="card">
+        <h3 class="card-title">📋 Access Logs</h3>
+        <button class="btn btn-dark btn-sm" onclick="loadLogs()" style="margin-bottom:1rem">🔄 Refresh</button>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Time</th><th>Event</th><th>User</th><th>IP</th><th>Details</th></tr></thead>
+          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;color:#78909c;padding:1.5rem">Click Refresh</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settings" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">🎨 Theme Customization</h3>
+        <div class="form-row">
+          <div class="form-group"><label>Primary Color</label>
+            <div class="color-row">
+              <input type="color" id="th-p" value="#00A8A8" oninput="document.getElementById('th-p-hex').value=this.value.replace('#','')">
+              <input type="text" id="th-p-hex" placeholder="00A8A8" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
+            </div>
+          </div>
+          <div class="form-group"><label>Secondary / Background</label>
+            <div class="color-row">
+              <input type="color" id="th-s" value="#E8F8F8" oninput="document.getElementById('th-s-hex').value=this.value.replace('#','')">
+              <input type="text" id="th-s-hex" placeholder="E8F8F8" oninput="if(this.value.length===6)document.getElementById('th-s').value='#'+this.value">
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Font Family</label>
+            <select id="th-font"><option>Segoe UI</option><option>Arial</option><option>Poppins</option><option>Roboto</option><option>Verdana</option><option>Georgia</option></select>
+          </div>
+          <div class="form-group"><label>App Name</label>
+            <input type="text" id="th-name" placeholder="ShiftGuard">
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px"><label>Dark Mode</label>
+          <select id="th-dark"><option value="0">Light Mode</option><option value="1">Dark Mode</option></select>
+        </div>
+        <div style="margin-bottom:1rem">
+          <strong style="font-size:.88rem">Quick Color Presets:</strong>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+            <button class="preset-btn" style="background:#00A8A8" onclick="applyPreset('00A8A8','E8F8F8')">🌊 Teal</button>
+            <button class="preset-btn" style="background:#8e44ad" onclick="applyPreset('8e44ad','f5eef8')">💜 Purple</button>
+            <button class="preset-btn" style="background:#c0392b" onclick="applyPreset('c0392b','fdecea')">❤️ Red</button>
+            <button class="preset-btn" style="background:#27ae60" onclick="applyPreset('27ae60','eafaf1')">💚 Green</button>
+            <button class="preset-btn" style="background:#2c3e50" onclick="applyPreset('2c3e50','eaf0fb')">🖤 Navy</button>
+            <button class="preset-btn" style="background:#d4ac0d" onclick="applyPreset('d4ac0d','fef9e7')">✨ Gold</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTheme()">💾 Save Theme</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">🔐 Change Password</h3>
+        <div class="form-group"><label>Current Password</label><input type="password" id="pw-cur"></div>
+        <div class="form-group"><label>New Password (min 8 chars)</label><input type="password" id="pw-new"></div>
+        <div class="form-group"><label>Confirm New Password</label><input type="password" id="pw-cfm"></div>
+        <button class="btn btn-primary" onclick="changePw()">🔐 Change Password</button>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h3 class="card-title" style="margin:0">👮 Admin Users</h3>
+          <button class="btn btn-primary btn-sm" onclick="openAddAdmin()">➕ Add Admin</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Username</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th></tr></thead>
+          <tbody id="admin-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<!-- MODALS -->
+<!-- Employee -->
+<div id="emp-modal" class="modal">
+<div class="modal-box">
+  <div class="modal-head"><h3 id="emp-modal-title">➕ Add Employee</h3><button class="modal-close" onclick="closeM('emp-modal')">&times;</button></div>
+  <input type="hidden" id="emp-id">
+  <div class="form-row">
+    <div class="form-group"><label>Full Name *</label><input type="text" id="e-name" required></div>
+    <div class="form-group"><label>PIN (4 digits) *</label><input type="text" id="e-pin" maxlength="4" inputmode="numeric" placeholder="Leave blank to keep existing"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Position</label><input type="text" id="e-pos" placeholder="e.g. Therapist"></div>
+    <div class="form-group"><label>Phone</label><input type="tel" id="e-phone"></div>
+  </div>
+  <div class="form-group"><label>Branch</label><select id="e-branch"></select></div>
+  <div class="form-row">
+    <div class="form-group"><label>Shift Start</label><input type="time" id="e-ss" value="09:30"></div>
+    <div class="form-group"><label>Shift End</label><input type="time" id="e-se" value="18:30"></div>
+  </div>
+  <div class="form-group"><label>Working Days</label>
+    <div class="wd-grid" id="wd-grid">
+      <label class="wd-cb"><input type="checkbox" value="Mon" checked><span>Mon</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Tue" checked><span>Tue</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Wed" checked><span>Wed</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Thu" checked><span>Thu</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Fri" checked><span>Fri</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Sat" checked><span>Sat</span></label>
+      <label class="wd-cb"><input type="checkbox" value="Sun"><span>Sun</span></label>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Salary Type</label>
+      <select id="e-saltype"><option value="monthly">Monthly</option><option value="hourly">Hourly</option></select>
+    </div>
+    <div class="form-group"><label>Salary Amount (USD)</label><input type="number" id="e-sal" placeholder="0" min="0"></div>
+  </div>
+  <div class="form-group"><label>Hire Date</label><input type="date" id="e-hire"></div>
+  <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('emp-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveEmp()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- PIN Reset -->
+<div id="pin-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>🔑 Reset PIN</h3><button class="modal-close" onclick="closeM('pin-modal')">&times;</button></div>
+  <p id="pin-name" style="color:var(--primary);font-weight:600;margin-bottom:1rem"></p>
+  <div class="form-group"><label>New 4-Digit PIN</label><input type="text" id="new-pin" maxlength="4" inputmode="numeric"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+    <button class="btn btn-outline" onclick="closeM('pin-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="doResetPin()">🔑 Reset</button>
+  </div>
+</div>
+</div>
+
+<!-- Edit Attendance -->
+<div id="att-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>✏️ Edit Attendance</h3><button class="modal-close" onclick="closeM('att-modal')">&times;</button></div>
+  <input type="hidden" id="att-edit-id">
+  <div class="form-group"><label>Check In</label><input type="datetime-local" id="att-ci"></div>
+  <div class="form-group"><label>Check Out</label><input type="datetime-local" id="att-co"></div>
+  <div class="form-group"><label>Notes</label><input type="text" id="att-notes"></div>
+  <div style="display:flex;justify-content:space-between;margin-top:1rem">
+    <button class="btn btn-danger btn-sm" onclick="deleteAtt()">🗑 Delete Record</button>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-outline" onclick="closeM('att-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAttEdit()">💾 Save</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Add Manual Attendance -->
+<div id="att-add-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>➕ Add Attendance Record</h3><button class="modal-close" onclick="closeM('att-add-modal')">&times;</button></div>
+  <div class="form-group"><label>Employee</label><select id="att-add-emp"></select></div>
+  <div class="form-group"><label>Date</label><input type="date" id="att-add-date"></div>
+  <div class="form-row">
+    <div class="form-group"><label>Check In Time</label><input type="time" id="att-add-ci"></div>
+    <div class="form-group"><label>Check Out Time</label><input type="time" id="att-add-co"></div>
+  </div>
+  <div class="form-group"><label>Notes</label><input type="text" id="att-add-notes"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('att-add-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveManualAtt()">💾 Add</button>
+  </div>
+</div>
+</div>
+
+<!-- Branch -->
+<div id="branch-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3 id="branch-modal-title">🏢 Add Branch</h3><button class="modal-close" onclick="closeM('branch-modal')">&times;</button></div>
+  <input type="hidden" id="br-id">
+  <div class="form-group"><label>Branch Name *</label><input type="text" id="br-name"></div>
+  <div class="form-group"><label>Address</label><input type="text" id="br-addr"></div>
+  <div class="form-group"><label>Phone</label><input type="tel" id="br-phone"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('branch-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveBranch()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- Add Admin -->
+<div id="admin-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>👮 Add Admin User</h3><button class="modal-close" onclick="closeM('admin-modal')">&times;</button></div>
+  <div class="form-group"><label>Username</label><input type="text" id="adm-u"></div>
+  <div class="form-group"><label>Password (min 8 chars)</label><input type="password" id="adm-pw"></div>
+  <div class="form-group"><label>Role</label>
+    <select id="adm-role"><option value="admin">Admin</option><option value="manager">Branch Manager</option><option value="superadmin">Super Admin</option></select>
+  </div>
+  <div class="form-group"><label>Branch (optional)</label><select id="adm-branch"><option value="">All Branches</option></select></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('admin-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveAdmin()">💾 Add</button>
+  </div>
+</div>
+</div>
+
+<!-- Photo Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <span class="lightbox-close">×</span>
+  <img id="lb-img" src="" alt="Photo">
+</div>
+
+<script src="/static/js/admin.js"></script>
+</body>
+</html>
