@@ -8,6 +8,14 @@ import logging, os, sys, shutil, io, base64, calendar, re
 from logging.handlers import RotatingFileHandler
 import config, database, network_manager
 
+# ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
+os.environ['TZ'] = 'Asia/Beirut'
+try:
+    import time as _time
+    _time.tzset()  # Apply on Linux/Railway server
+except AttributeError:
+    pass  # Windows doesn't have tzset — handled by os.environ above
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = config.SECRET_KEY
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=config.SESSION_HOURS)
