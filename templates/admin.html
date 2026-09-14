@@ -270,12 +270,20 @@ body{font-family:var(--font)}
     <div id="photos" class="tab-content">
       <div class="card">
         <h3 class="card-title">📸 Photo Management</h3>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem" id="ph-autodelete-note"></p>
         <div class="form-row" style="margin-bottom:1rem">
           <div class="form-group"><label>From</label><input type="date" id="ph-from"></div>
           <div class="form-group"><label>To</label><input type="date" id="ph-to"></div>
         </div>
-        <button class="btn btn-primary" onclick="loadPhotos()">🔍 Load Photos</button>
-        <div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-top:1.5rem"></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.2rem">
+          <button class="btn btn-primary" onclick="loadPhotos()">🔍 Load Photos</button>
+          <span style="flex:1"></span>
+          <label style="display:flex;align-items:center;gap:.35rem;font-size:.85rem;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="ph-select-all" onchange="toggleAllPhotos(this.checked)"> Select All
+          </label>
+          <button class="btn btn-danger btn-sm" onclick="deleteSelectedPhotos()">🗑 Delete Selected (<span id="ph-sel-count">0</span>)</button>
+        </div>
+        <div id="photo-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem"></div>
       </div>
     </div>
 
@@ -370,6 +378,24 @@ body{font-family:var(--font)}
 
     <!-- SETTINGS -->
     <div id="settings" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">📷 Photo Auto-Delete</h3>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Check-in/out photos take up storage over time. Turn this on to automatically delete photos older than the retention period below — the default of 30 days means each month's photos disappear on their own.</p>
+        <div class="form-row">
+          <div class="form-group"><label>Auto-Delete</label>
+            <select id="ph-auto-enabled"><option value="1">✅ Enabled</option><option value="0">🚫 Disabled</option></select>
+          </div>
+          <div class="form-group"><label>Delete Photos Older Than (days)</label>
+            <input type="number" id="ph-retention-days" min="1" placeholder="30">
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="savePhotoSettings()">💾 Save</button>
+          <button class="btn btn-danger" onclick="purgePhotosNow()">🧹 Run Cleanup Now</button>
+          <span id="ph-last-purge" style="font-size:.8rem;color:#78909c"></span>
+        </div>
+      </div>
+
       <div class="card">
         <h3 class="card-title">🎨 Theme Customization</h3>
         <div class="form-row">

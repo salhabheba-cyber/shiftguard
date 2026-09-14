@@ -417,6 +417,51 @@ def delete_photo(rid, field):
     if field in ('check_in_photo','check_out_photo'):
         run(f'UPDATE attendance SET {field}=NULL WHERE id=?', (rid,))
 
+def delete_photos_bulk(pairs):
+    """Manually delete a batch of photos. pairs: [(attendance_id, field), ...]."""
+    with get_db() as c:
+        for rid, field in pairs:
+            if field not in ('check_in_photo','check_out_photo'): continue
+            c.execute(f'UPDATE attendance SET {field}=NULL WHERE id=?', (rid,))
+        c.commit()
+
+# ── PHOTO AUTO-DELETE (RETENTION) ───────────────────────────────────────────
+def get_photo_settings():
+    return {
+        'enabled':        get_setting('photo_autodelete_enabled', '1') == '1',
+        'retention_days': int(get_setting('photo_retention_days', str(config.DEFAULT_PHOTO_RETENTION_DAYS))),
+        'last_purge':     get_setting('photo_last_purge', '') or None,
+    }
+
+def set_photo_settings(enabled=None, retention_days=None):
+    if enabled is not None:
+        set_setting('photo_autodelete_enabled', '1' if enabled else '0')
+    if retention_days is not None:
+        set_setting('photo_retention_days', str(max(1, int(retention_days))))
+
+def find_old_photos(retention_days):
+    """[(attendance_id, field, relative_static_path), ...] for photos older than retention_days."""
+    cutoff = (date.today() - timedelta(days=retention_days)).isoformat()
+    rows = q('''SELECT id, check_in_photo, check_out_photo FROM attendance
+                WHERE date < ? AND (check_in_photo IS NOT NULL OR check_out_photo IS NOT NULL)''', (cutoff,))
+    out = []
+    for r in rows:
+        if r['check_in_photo']:  out.append((r['id'], 'check_in_photo',  r['check_in_photo']))
+        if r['check_out_photo']: out.append((r['id'], 'check_out_photo', r['check_out_photo']))
+    return out
+
+def purge_photo_refs(pairs):
+    """Auto-purge: clear DB photo references for [(id,field),...] and mark status 'purged'."""
+    with get_db() as c:
+        for rid, field in pairs:
+            if field not in ('check_in_photo','check_out_photo'): continue
+            status_col = 'check_in_status' if field == 'check_in_photo' else 'check_out_status'
+            c.execute(f'UPDATE attendance SET {field}=NULL, {status_col}=? WHERE id=?', ('purged', rid))
+        c.commit()
+
+def mark_photo_purge_ran():
+    set_setting('photo_last_purge', date.today().isoformat())
+
 # ── SALARY ─────────────────────────────────────────────────────────────────────
 def calculate_salary(eid, year, month):
     """Accurate monthly salary calculation.

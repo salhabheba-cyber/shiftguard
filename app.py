@@ -86,6 +86,35 @@ def save_photo(b64, emp_name, action):
         logger.error(f"Photo save error: {e}")
         return None
 
+def _remove_photo_file(rel_path):
+    if not rel_path: return
+    path = os.path.join(config.BASE_DIR, 'static', rel_path)
+    try:
+        if os.path.exists(path): os.remove(path)
+    except Exception as e:
+        logger.error(f"Photo file delete error: {e}")
+
+def _maybe_auto_purge_photos():
+    """Runs at most once a day. Deletes check-in/out photos older than the
+    configured retention window (default 30 days) so storage doesn't grow
+    forever. Attendance records themselves are never touched — only the
+    photo file + its reference are cleared."""
+    try:
+        settings = database.get_photo_settings()
+        if not settings['enabled']: return
+        if settings['last_purge'] == date.today().isoformat(): return
+        old = database.find_old_photos(settings['retention_days'])
+        for _, _, relpath in old:
+            _remove_photo_file(relpath)
+        database.purge_photo_refs([(rid, field) for rid, field, _ in old])
+        database.mark_photo_purge_ran()
+        if old:
+            logger.info(f"Auto-purged {len(old)} photo(s) older than {settings['retention_days']} days")
+            database.log_event('photos_auto_purged', 'system', '',
+                               f"{len(old)} photo(s) older than {settings['retention_days']}d")
+    except Exception as e:
+        logger.error(f"Auto photo purge error: {e}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
 # ══════════════════════════════════════════════════════════════════════════════
@@ -196,6 +225,7 @@ def admin():
 @app.route('/api/admin/dashboard')
 @api_login_required
 def api_dashboard():
+    _maybe_auto_purge_photos()
     bid  = request.args.get('branch_id', type=int)
     logs = database.get_today_attendance(bid)
     emps = database.get_employees(active_only=True, branch_id=bid)
@@ -281,8 +311,7 @@ def api_del_photo(rid):
     field = d.get('field','check_in_photo')
     r     = database.q('SELECT * FROM attendance WHERE id=?',(rid,))
     if r and r[0].get(field):
-        path = os.path.join(config.BASE_DIR,'static',r[0][field])
-        if os.path.exists(path): os.remove(path)
+        _remove_photo_file(r[0][field])
     database.delete_photo(rid, field)
     return jsonify({'success':True})
 
@@ -616,6 +645,46 @@ def api_photos():
                 photos.append({'att_id':l['id'],'field':field,'employee':l['name'],
                                 'date':l['date'],'type':label,'url':f"/static/{l[field]}"})
     return jsonify({'photos':photos})
+
+@app.route('/api/admin/photo-settings', methods=['GET'])
+@api_login_required
+def api_get_photo_settings():
+    return jsonify(database.get_photo_settings())
+
+@app.route('/api/admin/photo-settings', methods=['POST'])
+@api_login_required
+def api_set_photo_settings():
+    d = request.json or {}
+    database.set_photo_settings(enabled=d.get('enabled'), retention_days=d.get('retention_days'))
+    return jsonify({'success':True,'message':'Photo settings saved'})
+
+@app.route('/api/admin/photos/purge', methods=['POST'])
+@api_login_required
+def api_purge_photos():
+    settings = database.get_photo_settings()
+    old = database.find_old_photos(settings['retention_days'])
+    for _, _, relpath in old:
+        _remove_photo_file(relpath)
+    database.purge_photo_refs([(rid, field) for rid, field, _ in old])
+    database.mark_photo_purge_ran()
+    database.log_event('photos_manual_purge', current_user.username, request.remote_addr, f'{len(old)} photo(s)')
+    return jsonify({'success':True,'deleted':len(old)})
+
+@app.route('/api/admin/photos/bulk-delete', methods=['POST'])
+@api_login_required
+def api_bulk_delete_photos():
+    d     = request.json or {}
+    items = d.get('items') or []
+    pairs = []
+    for it in items:
+        rid, field = it.get('att_id'), it.get('field')
+        if not rid or field not in ('check_in_photo','check_out_photo'): continue
+        r = database.q('SELECT * FROM attendance WHERE id=?', (rid,))
+        if r and r[0].get(field): _remove_photo_file(r[0][field])
+        pairs.append((rid, field))
+    database.delete_photos_bulk(pairs)
+    database.log_event('photos_bulk_delete', current_user.username, request.remote_addr, f'{len(pairs)} photo(s)')
+    return jsonify({'success':True,'deleted':len(pairs)})
 
 # ── BACKUP ─────────────────────────────────────────────────────────────────────
 @app.route('/api/admin/backup')

@@ -21,6 +21,9 @@ LATE_THRESHOLD_MINUTES = 10
 PIN_LENGTH             = 4
 SESSION_HOURS          = 8
 PHOTO_MAX_MB           = 5
+# Check-in/out photos older than this are auto-deleted once a day (roughly
+# "monthly" at the 30-day default). Adjustable in Admin → Settings.
+DEFAULT_PHOTO_RETENTION_DAYS = 30
 
 # ── SALARY CALCULATION ─────────────────────────────────────────────────────
 # How much of an employee's per-minute rate is deducted for each minute they

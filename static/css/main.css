@@ -187,6 +187,12 @@ table.tbl tbody tr:hover{background:var(--secondary)}
 .sal-row:last-child{border-bottom:none;font-weight:800;font-size:1.05rem;color:var(--dark)}
 .sal-row .ded{color:var(--danger)}.sal-row .add{color:var(--success)}
 
+/* Photo management grid */
+.photo-card{position:relative;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.1);border:1px solid var(--border)}
+.photo-check{position:absolute;top:.4rem;left:.4rem;z-index:2;background:rgba(255,255,255,.9);border-radius:6px;padding:.15rem .3rem;display:flex;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.photo-check input{width:18px;height:18px;accent-color:var(--primary);cursor:pointer}
+body.dark-mode .photo-card{background:#243535;border-color:#2a4a4b}
+
 /* Monthly notes */
 .note-box{width:100%;min-height:80px;padding:.65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;color:var(--text);font-family:var(--font);resize:vertical;outline:none;transition:.2s}
 .note-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(0,168,168,.1)}

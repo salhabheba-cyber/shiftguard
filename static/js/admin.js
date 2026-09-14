@@ -57,8 +57,8 @@ function switchTab(name){
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
-  if(name==='settings')loadAdmins();
-  if(name==='photos')loadPhotos();
+  if(name==='settings'){loadAdmins();loadPhotoSettings();}
+  if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
 
 function exportData(section,fmt,params){
@@ -371,8 +371,59 @@ function exportNotes(fmt){
 async function loadPhotos(){
   var d=await api('/api/admin/photos?start='+gv('ph-from')+'&end='+gv('ph-to'));
   var grid=document.getElementById('photo-grid');var photos=d.photos||[];
+  sv('ph-select-all',false);updatePhotoSelCount();
   if(!photos.length){grid.innerHTML='<p style="color:#78909c;grid-column:1/-1">No photos in this date range.</p>';return;}
-  grid.innerHTML=photos.map(function(p){return'<div style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.1);border:1px solid #c8e8e8"><img src="'+p.url+'" style="width:100%;height:120px;object-fit:cover;cursor:pointer" onclick="showLightbox(\''+p.url+'\')" alt=""><div style="padding:.5rem .6rem"><div style="font-size:.8rem;font-weight:600">'+p.employee+'</div><div style="font-size:.72rem;color:#78909c">'+p.date+' · '+p.type+'</div><button class="btn btn-danger btn-xs" style="margin-top:.4rem;width:100%" onclick="delPhoto('+p.att_id+',\''+p.field+'\');this.closest(\'div\').parentElement.remove()">🗑 Delete</button></div></div>';}).join('');
+  grid.innerHTML=photos.map(function(p){
+    var key=p.att_id+'|'+p.field;
+    return '<div class="photo-card">'+
+      '<label class="photo-check"><input type="checkbox" class="ph-cb" value="'+key+'" onchange="updatePhotoSelCount()"></label>'+
+      '<img src="'+p.url+'" style="width:100%;height:120px;object-fit:cover;cursor:pointer" onclick="showLightbox(\''+p.url+'\')" alt="">'+
+      '<div style="padding:.5rem .6rem"><div style="font-size:.8rem;font-weight:600">'+p.employee+'</div>'+
+      '<div style="font-size:.72rem;color:#78909c">'+p.date+' · '+p.type+'</div>'+
+      '<button class="btn btn-danger btn-xs" style="margin-top:.4rem;width:100%" onclick="delPhoto('+p.att_id+',\''+p.field+'\');this.closest(\'.photo-card\').remove()">🗑 Delete</button></div></div>';
+  }).join('');
+}
+function updatePhotoSelCount(){
+  var n=document.querySelectorAll('.ph-cb:checked').length;
+  var el=document.getElementById('ph-sel-count');if(el)el.textContent=n;
+}
+function toggleAllPhotos(checked){
+  document.querySelectorAll('.ph-cb').forEach(function(cb){cb.checked=checked;});
+  updatePhotoSelCount();
+}
+async function deleteSelectedPhotos(){
+  var boxes=Array.from(document.querySelectorAll('.ph-cb:checked'));
+  if(!boxes.length)return msg('err','Select at least one photo first');
+  if(!confirm('Permanently delete '+boxes.length+' selected photo(s)? Cannot be undone.'))return;
+  var items=boxes.map(function(cb){var parts=cb.value.split('|');return{att_id:parseInt(parts[0]),field:parts[1]};});
+  var d=await api('/api/admin/photos/bulk-delete','POST',{items:items});
+  if(d.success){msg('ok',d.deleted+' photo(s) deleted');loadPhotos();}else msg('err',d.message||'Delete failed');
+}
+
+// ── PHOTO AUTO-DELETE SETTINGS ────────────────────────────────────────────────
+async function loadPhotoSettings(){
+  var d=await api('/api/admin/photo-settings');
+  sv('ph-auto-enabled',d.enabled?'1':'0');
+  sv('ph-retention-days',d.retention_days||30);
+  var lastEl=document.getElementById('ph-last-purge');
+  if(lastEl)lastEl.textContent=d.last_purge?('Last cleanup: '+d.last_purge):'Cleanup has not run yet';
+  var noteEl=document.getElementById('ph-autodelete-note');
+  if(noteEl)noteEl.textContent=d.enabled?('Photos older than '+d.retention_days+' days are deleted automatically. Manage this in Settings → Photo Auto-Delete.'):'Automatic photo deletion is currently OFF. Turn it on in Settings → Photo Auto-Delete.';
+}
+async function savePhotoSettings(){
+  var days=parseInt(gv('ph-retention-days'))||30;
+  var d=await api('/api/admin/photo-settings','POST',{enabled:parseInt(gv('ph-auto-enabled')),retention_days:days});
+  if(d.success){msg('ok','Photo settings saved');loadPhotoSettings();}else msg('err',d.message);
+}
+async function purgePhotosNow(){
+  if(!confirm('Delete all photos older than the retention period right now? Cannot be undone.'))return;
+  var d=await api('/api/admin/photos/purge','POST');
+  if(d.success){
+    msg('ok',d.deleted+' old photo(s) removed');
+    loadPhotoSettings();
+    var photosTab=document.getElementById('photos');
+    if(photosTab&&photosTab.classList.contains('active'))loadPhotos();
+  }else msg('err',d.message||'Cleanup failed');
 }
 
 async function loadBlocked(){
