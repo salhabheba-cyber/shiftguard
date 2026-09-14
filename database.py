@@ -132,6 +132,40 @@ def init_db():
             last_login    TIMESTAMP,
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS leave_types (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT UNIQUE NOT NULL,
+            is_paid    INTEGER DEFAULT 1,
+            color      TEXT DEFAULT '00A8A8',
+            is_active  INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS leave_records (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id   INTEGER NOT NULL,
+            leave_type_id INTEGER NOT NULL,
+            start_date    DATE NOT NULL,
+            end_date      DATE NOT NULL,
+            is_paid       INTEGER DEFAULT 1,
+            notes         TEXT,
+            created_by    TEXT,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (employee_id)   REFERENCES employees(id),
+            FOREIGN KEY (leave_type_id) REFERENCES leave_types(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_leave_emp   ON leave_records(employee_id);
+        CREATE INDEX IF NOT EXISTS idx_leave_dates ON leave_records(start_date, end_date);
+        CREATE TABLE IF NOT EXISTS monthly_notes (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id  INTEGER NOT NULL,
+            year         INTEGER NOT NULL,
+            month        INTEGER NOT NULL,
+            note         TEXT,
+            updated_by   TEXT,
+            updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(employee_id, year, month),
+            FOREIGN KEY (employee_id) REFERENCES employees(id)
+        );
         ''')
         c.commit()
         if not q('SELECT id FROM branches LIMIT 1'):
@@ -144,6 +178,31 @@ def init_db():
         for k, v in config.DEFAULT_THEME.items():
             try: c.execute("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", (f'theme_{k}', v))
             except: pass
+        c.commit()
+        for name, is_paid in config.DEFAULT_LEAVE_TYPES:
+            try: c.execute("INSERT OR IGNORE INTO leave_types (name,is_paid) VALUES (?,?)", (name, is_paid))
+            except: pass
+        c.commit()
+    # Additive, non-destructive migrations for columns added after first release.
+    # Existing rows and data are never touched — only new columns are appended.
+    _ensure_columns('salary_records', [
+        ('salary_type',      "TEXT DEFAULT 'monthly'"),
+        ('days_leave_paid',  'INTEGER DEFAULT 0'),
+        ('days_leave_unpaid','INTEGER DEFAULT 0'),
+        ('leave_pay',        'REAL DEFAULT 0'),
+    ])
+
+def _table_columns(table):
+    return {r['name'] for r in q(f'PRAGMA table_info({table})')}
+
+def _ensure_columns(table, coldefs):
+    """Add any missing columns to `table`. Never drops or modifies existing data."""
+    existing = _table_columns(table)
+    missing  = [(n, d) for n, d in coldefs if n not in existing]
+    if not missing: return
+    with get_db() as c:
+        for name, decl in missing:
+            c.execute(f'ALTER TABLE {table} ADD COLUMN {name} {decl}')
         c.commit()
 
 # ── HASH ──────────────────────────────────────────────────────────────────────
@@ -360,55 +419,110 @@ def delete_photo(rid, field):
 
 # ── SALARY ─────────────────────────────────────────────────────────────────────
 def calculate_salary(eid, year, month):
+    """Accurate monthly salary calculation.
+
+    - Every scheduled working day is classified as present, paid leave,
+      unpaid leave, or absent (in that priority).
+    - Paid leave days (e.g. Annual Leave, or Sick Leave when marked paid)
+      are NOT deducted — the employee is paid as if they worked.
+    - Unpaid leave days are deducted exactly like an absence.
+    - Monthly-salary employees: deductions/overtime are computed against
+      a precise daily & per-minute rate derived from the actual number of
+      scheduled days and shift length for that month.
+    - Hourly-salary employees: pay is computed directly from actual hours
+      worked (lateness already reduces hours worked, so it isn't
+      double-deducted) plus paid-leave hours at the same hourly rate.
+    """
     emp = get_employee(eid)
     if not emp: return {}
     first = date(year, month, 1)
     last  = date(year, month, calendar.monthrange(year, month)[1])
     day_abbr = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
     wd_list  = [d.strip() for d in (emp['working_days'] or 'Mon,Tue,Wed,Thu,Fri,Sat').split(',')]
-    sched    = sum(1 for n in range((last-first).days+1)
-                   if day_abbr[(first+timedelta(days=n)).weekday()] in wd_list)
-    logs     = get_attendance_range(str(first), str(last), eid)
-    present  = len([l for l in logs if l['check_in']])
-    absent   = max(0, sched - present)
-    late_days= len([l for l in logs if (l['minutes_late'] or 0) > config.LATE_THRESHOLD_MINUTES])
-    late_min = sum(l['minutes_late'] or 0 for l in logs)
-    total_hrs= sum(l['hours_worked'] or 0 for l in logs)
-    ot_hrs   = sum(l['overtime_hours'] or 0 for l in logs)
-    base     = float(emp['salary_amount'] or 0)
-    daily    = (base / sched) if sched > 0 else 0
-    shift_hrs= (datetime.strptime(emp['shift_end'],'%H:%M') -
-                datetime.strptime(emp['shift_start'],'%H:%M')).total_seconds() / 3600
-    absent_ded = daily * absent
-    late_ded   = (daily / shift_hrs / 60) * late_min * 0.5 if shift_hrs > 0 else 0
-    hourly     = (base / (sched * shift_hrs)) if sched > 0 and shift_hrs > 0 else 0
-    ot_pay     = hourly * 1.5 * ot_hrs
-    net        = max(0, base - absent_ded - late_ded + ot_pay)
+    scheduled_dates = [first + timedelta(days=n) for n in range((last-first).days+1)
+                       if day_abbr[(first+timedelta(days=n)).weekday()] in wd_list]
+    sched = len(scheduled_dates)
+
+    logs          = get_attendance_range(str(first), str(last), eid)
+    present_dates = {str(l['date']) for l in logs if l['check_in']}
+    leave_map     = get_employee_leave_days(eid, str(first), str(last))
+
+    present = absent = leave_paid = leave_unpaid = 0
+    for d in scheduled_dates:
+        ds = d.isoformat()
+        if ds in present_dates:
+            present += 1
+        elif ds in leave_map:
+            if leave_map[ds]['is_paid']: leave_paid += 1
+            else: leave_unpaid += 1
+        else:
+            absent += 1
+
+    late_days = len([l for l in logs if (l['minutes_late'] or 0) > config.LATE_THRESHOLD_MINUTES])
+    late_min  = sum(l['minutes_late'] or 0 for l in logs)
+    total_hrs = sum(l['hours_worked'] or 0 for l in logs)
+    ot_hrs    = sum(l['overtime_hours'] or 0 for l in logs)
+    shift_hrs = (datetime.strptime(emp['shift_end'],'%H:%M') -
+                 datetime.strptime(emp['shift_start'],'%H:%M')).total_seconds() / 3600
+    if shift_hrs <= 0: shift_hrs = 8.0
+
+    salary_type = (emp['salary_type'] or 'monthly').lower()
+    rate        = float(emp['salary_amount'] or 0)
+
+    if salary_type == 'hourly':
+        hourly_rate = rate
+        regular_hrs = max(0.0, total_hrs - ot_hrs)
+        base_pay    = hourly_rate * regular_hrs
+        ot_pay      = hourly_rate * config.OVERTIME_MULTIPLIER * ot_hrs
+        leave_pay   = hourly_rate * shift_hrs * leave_paid
+        absent_ded  = 0.0   # no clock-in = no hours logged = already unpaid
+        late_ded    = 0.0   # lateness already shows up as fewer hours worked
+        base_display= round(hourly_rate, 2)
+        net         = max(0.0, base_pay + ot_pay + leave_pay)
+    else:
+        base        = rate
+        daily       = (base / sched) if sched > 0 else 0
+        hourly_rate = (daily / shift_hrs) if shift_hrs > 0 else 0
+        unpaid_days = absent + leave_unpaid
+        absent_ded  = daily * unpaid_days
+        late_ded    = hourly_rate * (late_min / 60.0) * config.LATE_DEDUCTION_FACTOR
+        ot_pay      = hourly_rate * config.OVERTIME_MULTIPLIER * ot_hrs
+        leave_pay   = 0.0   # paid leave already covered by the fixed base salary
+        base_display= round(base, 2)
+        net         = max(0.0, base - absent_ded - late_ded + ot_pay)
+
     return dict(employee_id=eid, employee_name=emp['name'], branch_name=emp.get('branch_name',''),
-                year=year, month=month, base_salary=round(base,2),
+                year=year, month=month, salary_type=salary_type, base_salary=base_display,
                 working_days=sched, days_present=present, days_absent=absent,
+                days_leave_paid=leave_paid, days_leave_unpaid=leave_unpaid,
                 days_late=late_days, total_late_min=round(late_min,1),
                 total_hours=round(total_hrs,2), overtime_hours=round(ot_hrs,2),
                 absent_deduction=round(absent_ded,2), late_deduction=round(late_ded,2),
-                overtime_pay=round(ot_pay,2), net_salary=round(net,2))
+                overtime_pay=round(ot_pay,2), leave_pay=round(leave_pay,2),
+                net_salary=round(net,2))
 
 def save_salary(calc):
     run('''INSERT INTO salary_records
            (employee_id,year,month,base_salary,working_days,days_present,days_absent,
             days_late,total_late_min,total_hours,overtime_hours,
-            absent_deduction,late_deduction,overtime_pay,net_salary)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            absent_deduction,late_deduction,overtime_pay,net_salary,
+            salary_type,days_leave_paid,days_leave_unpaid,leave_pay)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(employee_id,year,month) DO UPDATE SET
            base_salary=excluded.base_salary, working_days=excluded.working_days,
            days_present=excluded.days_present, days_absent=excluded.days_absent,
            days_late=excluded.days_late, total_late_min=excluded.total_late_min,
            total_hours=excluded.total_hours, overtime_hours=excluded.overtime_hours,
            absent_deduction=excluded.absent_deduction, late_deduction=excluded.late_deduction,
-           overtime_pay=excluded.overtime_pay, net_salary=excluded.net_salary''',
+           overtime_pay=excluded.overtime_pay, net_salary=excluded.net_salary,
+           salary_type=excluded.salary_type, days_leave_paid=excluded.days_leave_paid,
+           days_leave_unpaid=excluded.days_leave_unpaid, leave_pay=excluded.leave_pay''',
         (calc['employee_id'],calc['year'],calc['month'],calc['base_salary'],
          calc['working_days'],calc['days_present'],calc['days_absent'],calc['days_late'],
          calc['total_late_min'],calc['total_hours'],calc['overtime_hours'],
-         calc['absent_deduction'],calc['late_deduction'],calc['overtime_pay'],calc['net_salary']))
+         calc['absent_deduction'],calc['late_deduction'],calc['overtime_pay'],calc['net_salary'],
+         calc.get('salary_type','monthly'),calc.get('days_leave_paid',0),
+         calc.get('days_leave_unpaid',0),calc.get('leave_pay',0)))
 
 def get_salary_records(year=None, month=None, eid=None):
     conds, params = [], []
@@ -422,6 +536,112 @@ def get_salary_records(year=None, month=None, eid=None):
 def mark_paid(eid, year, month):
     run('UPDATE salary_records SET is_paid=1,paid_date=? WHERE employee_id=? AND year=? AND month=?',
         (date.today().isoformat(), eid, year, month))
+
+# ── LEAVE TYPES ──────────────────────────────────────────────────────────────
+def get_leave_types(active_only=True):
+    return q('SELECT * FROM leave_types WHERE is_active=1 ORDER BY name' if active_only
+             else 'SELECT * FROM leave_types ORDER BY name')
+
+def add_leave_type(name, is_paid=1, color=None):
+    return run('INSERT INTO leave_types (name,is_paid,color) VALUES (?,?,?)',
+              (name.strip(), 1 if is_paid else 0, color or '00A8A8'))
+
+def update_leave_type(lid, name=None, is_paid=None, color=None, is_active=None):
+    sets, vals = [], []
+    if name is not None:      sets.append('name=?');      vals.append(name.strip())
+    if is_paid is not None:   sets.append('is_paid=?');   vals.append(1 if is_paid else 0)
+    if color is not None:     sets.append('color=?');     vals.append(color)
+    if is_active is not None: sets.append('is_active=?'); vals.append(1 if is_active else 0)
+    if not sets: return
+    vals.append(lid)
+    run(f"UPDATE leave_types SET {','.join(sets)} WHERE id=?", vals)
+
+def delete_leave_type(lid):
+    run('UPDATE leave_types SET is_active=0 WHERE id=?', (lid,))
+
+# ── LEAVE RECORDS ────────────────────────────────────────────────────────────
+def get_leave_records(start=None, end=None, employee_id=None):
+    conds, params = [], []
+    if start and end: conds.append('l.start_date<=? AND l.end_date>=?'); params += [end, start]
+    if employee_id:    conds.append('l.employee_id=?'); params.append(employee_id)
+    where = ('WHERE ' + ' AND '.join(conds)) if conds else ''
+    return q(f'''SELECT l.*, e.name as employee_name, t.name as leave_type_name
+                 FROM leave_records l
+                 JOIN employees e   ON l.employee_id=e.id
+                 JOIN leave_types t ON l.leave_type_id=t.id
+                 {where} ORDER BY l.start_date DESC''', params)
+
+def get_leave_record(lid):
+    r = q('''SELECT l.*, e.name as employee_name, t.name as leave_type_name
+             FROM leave_records l
+             JOIN employees e   ON l.employee_id=e.id
+             JOIN leave_types t ON l.leave_type_id=t.id
+             WHERE l.id=?''', (lid,))
+    return r[0] if r else None
+
+def add_leave_record(employee_id, leave_type_id, start_date, end_date, notes=None,
+                     is_paid_override=None, created_by='admin'):
+    if is_paid_override is not None:
+        is_paid = is_paid_override
+    else:
+        lt = q('SELECT is_paid FROM leave_types WHERE id=?', (leave_type_id,))
+        is_paid = lt[0]['is_paid'] if lt else 1
+    return run('''INSERT INTO leave_records
+           (employee_id,leave_type_id,start_date,end_date,is_paid,notes,created_by)
+           VALUES (?,?,?,?,?,?,?)''',
+        (employee_id, leave_type_id, start_date, end_date, 1 if is_paid else 0, notes, created_by))
+
+def update_leave_record(lid, **kw):
+    allowed = ['leave_type_id','start_date','end_date','is_paid','notes']
+    sets, vals = [], []
+    for k, v in kw.items():
+        if k in allowed: sets.append(f'{k}=?'); vals.append(v)
+    if not sets: return
+    vals.append(lid)
+    run(f"UPDATE leave_records SET {','.join(sets)} WHERE id=?", vals)
+
+def delete_leave_record(lid):
+    run('DELETE FROM leave_records WHERE id=?', (lid,))
+
+def get_employee_leave_days(eid, start, end):
+    """Map every calendar day in [start,end] covered by one of this employee's
+    leave records to {'type': name, 'is_paid': bool, 'leave_id': id}."""
+    recs = get_leave_records(start, end, eid)
+    d0, d1 = date.fromisoformat(start), date.fromisoformat(end)
+    days = {}
+    for r in recs:
+        rs = max(date.fromisoformat(str(r['start_date'])), d0)
+        re_ = min(date.fromisoformat(str(r['end_date'])), d1)
+        cur = rs
+        while cur <= re_:
+            days[cur.isoformat()] = {'type': r['leave_type_name'], 'is_paid': bool(r['is_paid']), 'leave_id': r['id']}
+            cur += timedelta(days=1)
+    return days
+
+# ── MONTHLY NOTES ────────────────────────────────────────────────────────────
+def get_monthly_note(eid, year, month):
+    r = q('SELECT note FROM monthly_notes WHERE employee_id=? AND year=? AND month=?', (eid, year, month))
+    return r[0]['note'] if r else ''
+
+def set_monthly_note(eid, year, month, note, updated_by='admin'):
+    run('''INSERT INTO monthly_notes (employee_id,year,month,note,updated_by,updated_at)
+           VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+           ON CONFLICT(employee_id,year,month) DO UPDATE SET
+           note=excluded.note, updated_by=excluded.updated_by, updated_at=CURRENT_TIMESTAMP''',
+        (eid, year, month, note, updated_by))
+
+def get_monthly_notes(year, month):
+    return q('''SELECT n.*, e.name as employee_name FROM monthly_notes n
+                JOIN employees e ON n.employee_id=e.id
+                WHERE n.year=? AND n.month=? ORDER BY e.name''', (year, month))
+
+def get_employees_with_notes(year, month, branch_id=None):
+    """All active employees plus their note for the given month (blank if none)."""
+    emps  = get_employees(active_only=True, branch_id=branch_id)
+    notes = {n['employee_id']: n['note'] for n in
+             q('SELECT employee_id,note FROM monthly_notes WHERE year=? AND month=?', (year, month))}
+    for e in emps: e['note'] = notes.get(e['id'], '') or ''
+    return emps
 
 # ── BLOCKED SITES ──────────────────────────────────────────────────────────────
 def get_blocked_sites():

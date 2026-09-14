@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager
+import config, database, network_manager, reports
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -411,6 +411,104 @@ def api_mark_paid():
     database.mark_paid(d['employee_id'], d['year'], d['month'])
     return jsonify({'success':True})
 
+# ── LEAVE TYPES ──────────────────────────────────────────────────────────────
+@app.route('/api/admin/leave-types', methods=['GET'])
+@api_login_required
+def api_leave_types():
+    return jsonify({'leave_types': database.get_leave_types(active_only=False)})
+
+@app.route('/api/admin/leave-types', methods=['POST'])
+@api_login_required
+def api_add_leave_type():
+    d    = request.json or {}
+    name = (d.get('name') or '').strip()
+    if not name: return jsonify({'success':False,'message':'Name required'}), 400
+    try:
+        lid = database.add_leave_type(name, d.get('is_paid', 1), d.get('color'))
+        return jsonify({'success':True,'id':lid,'message':f'Leave type "{name}" added'})
+    except Exception as e:
+        return jsonify({'success':False,'message':'That leave type already exists'}), 400
+
+@app.route('/api/admin/leave-types/<int:lid>', methods=['PUT'])
+@api_login_required
+def api_upd_leave_type(lid):
+    d = request.json or {}
+    database.update_leave_type(lid, name=d.get('name'), is_paid=d.get('is_paid'),
+                               color=d.get('color'), is_active=d.get('is_active'))
+    return jsonify({'success':True,'message':'Leave type updated'})
+
+@app.route('/api/admin/leave-types/<int:lid>', methods=['DELETE'])
+@api_login_required
+def api_del_leave_type(lid):
+    database.delete_leave_type(lid)
+    return jsonify({'success':True})
+
+# ── LEAVE RECORDS ─────────────────────────────────────────────────────────────
+@app.route('/api/admin/leave', methods=['GET'])
+@api_login_required
+def api_leave():
+    start = request.args.get('start', (date.today()-timedelta(days=90)).isoformat())
+    end   = request.args.get('end',   (date.today()+timedelta(days=90)).isoformat())
+    eid   = request.args.get('employee_id', type=int)
+    recs  = database.get_leave_records(start, end, eid)
+    for r in recs:
+        r['days'] = (date.fromisoformat(str(r['end_date'])) - date.fromisoformat(str(r['start_date']))).days + 1
+    return jsonify({'records': recs})
+
+@app.route('/api/admin/leave', methods=['POST'])
+@api_login_required
+def api_add_leave():
+    d     = request.json or {}
+    eid   = d.get('employee_id')
+    ltid  = d.get('leave_type_id')
+    start = d.get('start_date')
+    end   = d.get('end_date') or start
+    if not eid or not ltid or not start:
+        return jsonify({'success':False,'message':'Employee, leave type and start date are required'}), 400
+    if end < start:
+        return jsonify({'success':False,'message':'End date cannot be before start date'}), 400
+    is_paid = d.get('is_paid') if 'is_paid' in d and d.get('is_paid') is not None else None
+    lid = database.add_leave_record(int(eid), int(ltid), start, end, d.get('notes'),
+                                    is_paid, current_user.username)
+    return jsonify({'success':True,'id':lid,'message':'Leave recorded'})
+
+@app.route('/api/admin/leave/<int:lid>', methods=['PUT'])
+@api_login_required
+def api_upd_leave(lid):
+    d  = request.json or {}
+    kw = {}
+    for f in ['leave_type_id','start_date','end_date','is_paid','notes']:
+        if f in d: kw[f] = d[f]
+    database.update_leave_record(lid, **kw)
+    return jsonify({'success':True,'message':'Leave record updated'})
+
+@app.route('/api/admin/leave/<int:lid>', methods=['DELETE'])
+@api_login_required
+def api_del_leave(lid):
+    database.delete_leave_record(lid)
+    return jsonify({'success':True})
+
+# ── MONTHLY NOTES ──────────────────────────────────────────────────────────────
+@app.route('/api/admin/notes', methods=['GET'])
+@api_login_required
+def api_notes():
+    year  = request.args.get('year',  type=int, default=date.today().year)
+    month = request.args.get('month', type=int, default=date.today().month)
+    bid   = request.args.get('branch_id', type=int)
+    emps  = database.get_employees_with_notes(year, month, bid)
+    for e in emps: e.pop('pin_hash', None)
+    return jsonify({'employees': emps, 'year': year, 'month': month})
+
+@app.route('/api/admin/notes', methods=['POST'])
+@api_login_required
+def api_save_note():
+    d     = request.json or {}
+    eid   = d.get('employee_id'); year = d.get('year'); month = d.get('month')
+    if not eid or not year or not month:
+        return jsonify({'success':False,'message':'Missing data'}), 400
+    database.set_monthly_note(int(eid), int(year), int(month), d.get('note',''), current_user.username)
+    return jsonify({'success':True,'message':'Note saved'})
+
 # ── BLOCKED SITES ──────────────────────────────────────────────────────────────
 @app.route('/api/admin/blocked-sites', methods=['GET'])
 @api_login_required
@@ -528,118 +626,200 @@ def api_backup():
     shutil.copy2(config.DATABASE_PATH, dest)
     return send_file(dest, as_attachment=True, download_name=f'shiftguard_backup_{ts}.db')
 
-# ── REPORTS ────────────────────────────────────────────────────────────────────
+# ── REPORTS (daily / monthly, each exportable as Excel, Word or PDF) ───────────
+EXPORT_MIME = {
+    'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'word':  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'pdf':   'application/pdf',
+}
+
 @app.route('/api/admin/report/daily')
+@app.route('/api/admin/report/daily/<fmt>')
 @api_login_required
-def api_daily_report():
+def api_daily_report(fmt='excel'):
     day = request.args.get('date', date.today().isoformat())
     bid = request.args.get('branch_id', type=int)
-    return _make_report('daily', day=day, branch_id=bid)
+    return _make_report('daily', fmt, day=day, branch_id=bid)
 
 @app.route('/api/admin/report/monthly')
+@app.route('/api/admin/report/monthly/<fmt>')
 @api_login_required
-def api_monthly_report():
+def api_monthly_report(fmt='excel'):
     month_str = request.args.get('month', date.today().strftime('%Y-%m'))
     bid       = request.args.get('branch_id', type=int)
-    return _make_report('monthly', month_str=month_str, branch_id=bid)
+    return _make_report('monthly', fmt, month_str=month_str, branch_id=bid)
 
-def _make_report(rtype, **kw):
+def _daily_sections(day, branch_id=None):
+    logs = database.get_attendance_range(day, day, branch_id=branch_id)
+    headers = ['Employee','Branch','Position','Date','Check In','Check Out','Hours','Late(min)','Status']
+    rows = [[l['name'], l.get('branch_name',''), l['position'] or '', l['date'],
+             str(l['check_in'])[:16] if l['check_in'] else '—',
+             str(l['check_out'])[:16] if l['check_out'] else '—',
+             round(l['hours_worked'] or 0,2), l['minutes_late'] or 0, l['status'] or '—'] for l in logs]
+    return [('Daily Attendance', headers, rows)]
+
+def _monthly_sections(year, month, branch_id=None):
+    first = f'{year}-{month:02d}-01'
+    last  = f'{year}-{month:02d}-{calendar.monthrange(year,month)[1]}'
+    emps  = database.get_employees(active_only=True, branch_id=branch_id)
+    logs  = database.get_attendance_range(first, last, branch_id=branch_id)
+    leave = database.get_leave_records(first, last, None)
+    if branch_id:
+        emp_ids = {e['id'] for e in emps}
+        leave = [r for r in leave if r['employee_id'] in emp_ids]
+    notes = database.get_monthly_notes(year, month)
+    if branch_id:
+        emp_ids = {e['id'] for e in emps}
+        notes = [n for n in notes if n['employee_id'] in emp_ids]
+
+    sum_headers = ['Employee','Branch','Scheduled','Present','Paid Leave','Unpaid Leave',
+                   'Absent','Late Days','Total Hours','Overtime','Late Min']
+    sal_headers = ['Employee','Type','Base / Rate','Leave Pay','Absent Ded.','Late Ded.','OT Pay','Net Salary']
+    sum_rows, sal_rows = [], []
+    for e in emps:
+        c = database.calculate_salary(e['id'], year, month)
+        sum_rows.append([e['name'], e.get('branch_name',''), c['working_days'], c['days_present'],
+                          c['days_leave_paid'], c['days_leave_unpaid'], c['days_absent'],
+                          c['days_late'], c['total_hours'], c['overtime_hours'], c['total_late_min']])
+        sal_rows.append([e['name'], c['salary_type'].title(), c['base_salary'], c['leave_pay'],
+                          c['absent_deduction'], c['late_deduction'], c['overtime_pay'], c['net_salary']])
+
+    daily_headers = ['Employee','Date','Check In','Check Out','Hours','OT','Late(min)','Status']
+    daily_rows = [[l['name'], l['date'],
+                   str(l['check_in'])[:16] if l['check_in'] else '—',
+                   str(l['check_out'])[:16] if l['check_out'] else '—',
+                   round(l['hours_worked'] or 0,2), round(l['overtime_hours'] or 0,2),
+                   l['minutes_late'] or 0, l['status'] or '—'] for l in logs]
+
+    leave_headers = ['Employee','Leave Type','Start','End','Paid?','Notes']
+    leave_rows = [[r['employee_name'], r['leave_type_name'], r['start_date'], r['end_date'],
+                   'Yes' if r['is_paid'] else 'No', r['notes'] or ''] for r in leave]
+
+    notes_headers = ['Employee','Note']
+    notes_rows = [[n['employee_name'], n['note'] or ''] for n in notes]
+
+    return [
+        ('Attendance Summary', sum_headers, sum_rows),
+        ('Salary Breakdown',   sal_headers, sal_rows),
+        ('Daily Log',          daily_headers, daily_rows),
+        ('Leave',              leave_headers, leave_rows),
+        ('Monthly Notes',      notes_headers, notes_rows),
+    ]
+
+def _make_report(rtype, fmt='excel', **kw):
+    if fmt not in EXPORT_MIME:
+        return jsonify({'error':'Invalid format. Use excel, word or pdf.'}), 400
     try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
-        from openpyxl.utils import get_column_letter
-        T,DK,TL,WH='00A8A8','1c3a3b','E8F8F8','FFFFFF'
-        def H(cell, val, bg=None):
-            cell.value=val; cell.font=Font(bold=True,color=WH,size=10)
-            cell.fill=PatternFill('solid',fgColor=bg or T)
-            cell.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
-        wb=openpyxl.Workbook()
-        if rtype=='daily':
-            day=kw['day']; bid=kw.get('branch_id')
-            logs=database.get_attendance_range(day,day,branch_id=bid)
-            ws=wb.active; ws.title=f'Daily {day}'
-            ws.merge_cells('A1:I1'); H(ws['A1'],f'ShiftGuard — Daily Report — {day}',DK)
-            ws.row_dimensions[1].height=28
-            for c,h in enumerate(['Employee','Branch','Position','Date','Check In',
-                                   'Check Out','Hours','Late(min)','Status'],1):
-                H(ws.cell(row=2,column=c),h)
-            for i,l in enumerate(logs,3):
-                row=[l['name'],l.get('branch_name',''),l['position'] or '',l['date'],
-                     str(l['check_in'])[:16] if l['check_in'] else '—',
-                     str(l['check_out'])[:16] if l['check_out'] else '—',
-                     round(l['hours_worked'] or 0,2),l['minutes_late'] or 0,l['status'] or '—']
-                for c,v in enumerate(row,1):
-                    cell=ws.cell(row=i,column=c); cell.value=v
-                    cell.alignment=Alignment(horizontal='center')
-                    if i%2==0: cell.fill=PatternFill('solid',fgColor=TL)
-            for i,w in enumerate([22,16,14,12,18,18,10,10,14],1):
-                ws.column_dimensions[get_column_letter(i)].width=w
-            fname=f'ShiftGuard_Daily_{day}.xlsx'
+        if rtype == 'daily':
+            day = kw['day']; bid = kw.get('branch_id')
+            sections = _daily_sections(day, bid)
+            title = f'ShiftGuard — Daily Report — {day}'
+            base  = f'ShiftGuard_Daily_{day}'
         else:
-            ms=kw['month_str']; bid=kw.get('branch_id')
-            year,month=map(int,ms.split('-'))
-            mname=calendar.month_name[month]
-            first=f'{year}-{month:02d}-01'
-            last =f'{year}-{month:02d}-{calendar.monthrange(year,month)[1]}'
-            emps=database.get_employees(active_only=True)
-            logs=database.get_attendance_range(first,last,branch_id=bid)
-            # Sheet 1 Summary
-            ws1=wb.active; ws1.title='Attendance Summary'
-            ws1.merge_cells('A1:K1'); H(ws1['A1'],f'ShiftGuard — Monthly Attendance — {mname} {year}',DK)
-            ws1.row_dimensions[1].height=28
-            for c,h in enumerate(['Employee','Branch','Scheduled','Present','Absent','Late Days',
-                                   'Total Hours','Overtime','Late Min','Status','Notes'],1):
-                H(ws1.cell(row=2,column=c),h)
-            for i,e in enumerate(emps,3):
-                calc=database.calculate_salary(e['id'],year,month)
-                row=[e['name'],e.get('branch_name',''),calc['working_days'],calc['days_present'],
-                     calc['days_absent'],calc['days_late'],calc['total_hours'],
-                     calc['overtime_hours'],calc['total_late_min'],'Active','']
-                for c,v in enumerate(row,1):
-                    cell=ws1.cell(row=i,column=c); cell.value=v
-                    cell.alignment=Alignment(horizontal='center')
-                    if i%2==0: cell.fill=PatternFill('solid',fgColor=TL)
-            for i,w in enumerate([22,16,12,10,10,12,12,12,10,10,14],1):
-                ws1.column_dimensions[get_column_letter(i)].width=w
-            # Sheet 2 Salary
-            ws2=wb.create_sheet('Salary')
-            ws2.merge_cells('A1:H1'); H(ws2['A1'],f'Salary Breakdown — {mname} {year}',DK)
-            for c,h in enumerate(['Employee','Base','Absent Ded.','Late Ded.','OT Pay','Net Salary','Paid','Date'],1):
-                H(ws2.cell(row=2,column=c),h)
-            for i,e in enumerate(emps,3):
-                calc=database.calculate_salary(e['id'],year,month)
-                row=[e['name'],calc['base_salary'],calc['absent_deduction'],
-                     calc['late_deduction'],calc['overtime_pay'],calc['net_salary'],'','']
-                for c,v in enumerate(row,1):
-                    cell=ws2.cell(row=i,column=c); cell.value=v
-                    cell.alignment=Alignment(horizontal='center')
-                    if c==6: cell.font=Font(bold=True)
-                    if i%2==0: cell.fill=PatternFill('solid',fgColor=TL)
-            for i,w in enumerate([22,14,14,12,14,14,8,14],1):
-                ws2.column_dimensions[get_column_letter(i)].width=w
-            # Sheet 3 Daily Log
-            ws3=wb.create_sheet('Daily Log')
-            ws3.merge_cells('A1:H1'); H(ws3['A1'],f'Daily Log — {mname} {year}',DK)
-            for c,h in enumerate(['Employee','Date','Check In','Check Out','Hours','OT','Late(min)','Status'],1):
-                H(ws3.cell(row=2,column=c),h)
-            for i,l in enumerate(logs,3):
-                row=[l['name'],l['date'],
-                     str(l['check_in'])[:16] if l['check_in'] else '—',
-                     str(l['check_out'])[:16] if l['check_out'] else '—',
-                     round(l['hours_worked'] or 0,2),round(l['overtime_hours'] or 0,2),
-                     l['minutes_late'] or 0,l['status'] or '—']
-                for c,v in enumerate(row,1):
-                    cell=ws3.cell(row=i,column=c); cell.value=v
-                    cell.alignment=Alignment(horizontal='center')
-                    if i%2==0: cell.fill=PatternFill('solid',fgColor=TL)
-            fname=f'ShiftGuard_Monthly_{ms}.xlsx'
-        buf=io.BytesIO(); wb.save(buf); buf.seek(0)
-        return send_file(buf,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,download_name=fname)
+            ms = kw['month_str']; bid = kw.get('branch_id')
+            year, month = map(int, ms.split('-'))
+            mname = calendar.month_name[month]
+            sections = _monthly_sections(year, month, bid)
+            title = f'ShiftGuard — Monthly Report — {mname} {year}'
+            base  = f'ShiftGuard_Monthly_{ms}'
+
+        if fmt == 'excel':
+            sheets = [(h, hdrs, rows, None) for h, hdrs, rows in sections]
+            buf, fname = reports.excel_multi(title, sheets, base)
+        elif fmt == 'word':
+            buf, fname = reports.word_table(title, None, None, base, sections=sections)
+        else:
+            buf, fname = reports.pdf_multi(title, sections, base)
+
+        return send_file(buf, mimetype=EXPORT_MIME[fmt], as_attachment=True, download_name=fname)
     except Exception as e:
         logger.error(f"Report error: {e}")
-        return jsonify({'error':str(e)}),500
+        return jsonify({'error':str(e)}), 500
+
+# ── GENERIC TABLE EXPORTS (Attendance / Employees / Salary / Leave / Notes) ────
+def _export_data(section):
+    bid = request.args.get('branch_id', type=int)
+
+    if section == 'attendance':
+        start = request.args.get('start', (date.today()-timedelta(days=30)).isoformat())
+        end   = request.args.get('end',   date.today().isoformat())
+        eid   = request.args.get('employee_id', type=int)
+        logs  = database.get_attendance_range(start, end, eid, bid)
+        headers = ['Employee','Branch','Date','Check In','Check Out','Hours','OT','Late(min)','Status','Notes']
+        rows = [[l['name'], l.get('branch_name',''), l['date'],
+                 str(l['check_in'])[:16] if l['check_in'] else '—',
+                 str(l['check_out'])[:16] if l['check_out'] else '—',
+                 round(l['hours_worked'] or 0,2), round(l['overtime_hours'] or 0,2),
+                 l['minutes_late'] or 0, l['status'] or '—', l['notes'] or ''] for l in logs]
+        return f'Attendance Records ({start} to {end})', headers, rows, f'ShiftGuard_Attendance_{start}_{end}'
+
+    if section == 'employees':
+        emps = database.get_employees(active_only=True, branch_id=bid)
+        headers = ['Name','Position','Branch','Phone','Shift Start','Shift End',
+                   'Working Days','Salary Type','Salary Amount','Hire Date']
+        rows = [[e['name'], e['position'] or '', e.get('branch_name',''), e['phone'] or '',
+                 e['shift_start'], e['shift_end'], (e['working_days'] or '').replace(',', ' '),
+                 (e['salary_type'] or 'monthly').title(), e['salary_amount'], e['hire_date'] or ''] for e in emps]
+        return 'Employee List', headers, rows, 'ShiftGuard_Employees'
+
+    if section == 'salary':
+        year  = request.args.get('year',  type=int)
+        month = request.args.get('month', type=int)
+        eid   = request.args.get('employee_id', type=int)
+        recs  = database.get_salary_records(year, month, eid)
+        headers = ['Employee','Year','Month','Type','Base / Rate','Present','Paid Leave','Unpaid Leave',
+                   'Absent','Late Days','Late Ded.','Absent Ded.','OT Pay','Leave Pay','Net Salary','Paid']
+        rows = [[r['name'], r['year'], r['month'], (r.get('salary_type') or 'monthly').title(),
+                 r['base_salary'], r['days_present'], r.get('days_leave_paid',0), r.get('days_leave_unpaid',0),
+                 r['days_absent'], r['days_late'], r['late_deduction'], r['absent_deduction'],
+                 r['overtime_pay'], r.get('leave_pay',0), r['net_salary'],
+                 'Yes' if r['is_paid'] else 'No'] for r in recs]
+        return 'Salary Records', headers, rows, 'ShiftGuard_Salary'
+
+    if section == 'leave':
+        start = request.args.get('start', (date.today()-timedelta(days=90)).isoformat())
+        end   = request.args.get('end',   (date.today()+timedelta(days=90)).isoformat())
+        eid   = request.args.get('employee_id', type=int)
+        recs  = database.get_leave_records(start, end, eid)
+        headers = ['Employee','Leave Type','Start Date','End Date','Days','Paid?','Notes']
+        rows = []
+        for r in recs:
+            days = (date.fromisoformat(str(r['end_date'])) - date.fromisoformat(str(r['start_date']))).days + 1
+            rows.append([r['employee_name'], r['leave_type_name'], r['start_date'], r['end_date'],
+                         days, 'Yes' if r['is_paid'] else 'No', r['notes'] or ''])
+        return f'Leave Records ({start} to {end})', headers, rows, 'ShiftGuard_Leave'
+
+    if section == 'notes':
+        year  = request.args.get('year',  type=int, default=date.today().year)
+        month = request.args.get('month', type=int, default=date.today().month)
+        emps  = database.get_employees_with_notes(year, month, bid)
+        mname = calendar.month_name[month]
+        headers = ['Employee','Branch','Note']
+        rows = [[e['name'], e.get('branch_name',''), e['note'] or ''] for e in emps]
+        return f'Monthly Notes — {mname} {year}', headers, rows, f'ShiftGuard_Notes_{year}_{month:02d}'
+
+    raise ValueError('Unknown export section')
+
+@app.route('/api/admin/export/<section>/<fmt>')
+@api_login_required
+def api_export(section, fmt):
+    if fmt not in EXPORT_MIME:
+        return jsonify({'error':'Invalid format. Use excel, word or pdf.'}), 400
+    try:
+        title, headers, rows, base = _export_data(section)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        if fmt == 'excel':
+            buf, fname = reports.excel_table(title, headers, rows, base)
+        elif fmt == 'word':
+            buf, fname = reports.word_table(title, headers, rows, base)
+        else:
+            buf, fname = reports.pdf_table(title, headers, rows, base)
+        return send_file(buf, mimetype=EXPORT_MIME[fmt], as_attachment=True, download_name=fname)
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        return jsonify({'error':str(e)}), 500
 
 # ── ERRORS ─────────────────────────────────────────────────────────────────────
 @app.errorhandler(404)

@@ -187,6 +187,11 @@ table.tbl tbody tr:hover{background:var(--secondary)}
 .sal-row:last-child{border-bottom:none;font-weight:800;font-size:1.05rem;color:var(--dark)}
 .sal-row .ded{color:var(--danger)}.sal-row .add{color:var(--success)}
 
+/* Monthly notes */
+.note-box{width:100%;min-height:80px;padding:.65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;color:var(--text);font-family:var(--font);resize:vertical;outline:none;transition:.2s}
+.note-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(0,168,168,.1)}
+body.dark-mode .note-box{background:#1c3a3b;color:#e0f5f5;border-color:#2a4a4b}
+
 /* Color pickers */
 .color-row{display:flex;gap:.5rem;align-items:center}
 .color-row input[type=color]{width:46px;height:36px;padding:2px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer}

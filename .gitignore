@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Runtime data — never commit real employee/attendance data, photos, or DB backups
+data/
+logs/
+backup/
+reports/
+static/photos/
+
+# OS / editor
+.DS_Store

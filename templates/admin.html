@@ -34,6 +34,8 @@ body{font-family:var(--font)}
       <div class="sb-label">People</div>
       <a href="#" class="nav-link" data-tab="employees">👥 <span>Employees</span></a>
       <a href="#" class="nav-link" data-tab="branches">🏢 <span>Branches</span></a>
+      <a href="#" class="nav-link" data-tab="leave">🌴 <span>Leave</span></a>
+      <a href="#" class="nav-link" data-tab="notes">📝 <span>Notes</span></a>
     </div>
     <div class="sb-section">
       <div class="sb-label">Finance</div>
@@ -101,6 +103,10 @@ body{font-family:var(--font)}
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
           <button class="btn btn-primary" onclick="loadAttendance()">🔍 Search</button>
           <button class="btn btn-dark" onclick="openAddAtt()">➕ Add Manual</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="exportData('attendance','excel',{start:gv('att-from'),end:gv('att-to')})">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('attendance','word',{start:gv('att-from'),end:gv('att-to')})">📝 Word</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('attendance','pdf',{start:gv('att-from'),end:gv('att-to')})">📄 PDF</button>
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Branch</th><th>Date</th><th>Check In</th><th>In Photo</th><th>Check Out</th><th>Out Photo</th><th>Hours</th><th>Late</th><th>Status</th><th>Edit</th></tr></thead>
@@ -112,9 +118,14 @@ body{font-family:var(--font)}
     <!-- EMPLOYEES -->
     <div id="employees" class="tab-content">
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
           <h3 class="card-title" style="margin:0">👥 Employees</h3>
-          <button class="btn btn-primary" onclick="openAddEmp()">➕ Add Employee</button>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="exportData('employees','excel',{})">📊 Excel</button>
+            <button class="btn btn-outline btn-sm" onclick="exportData('employees','word',{})">📝 Word</button>
+            <button class="btn btn-outline btn-sm" onclick="exportData('employees','pdf',{})">📄 PDF</button>
+            <button class="btn btn-primary" onclick="openAddEmp()">➕ Add Employee</button>
+          </div>
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Actions</th></tr></thead>
@@ -137,6 +148,60 @@ body{font-family:var(--font)}
       </div>
     </div>
 
+    <!-- LEAVE -->
+    <div id="leave" class="tab-content">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;gap:.5rem">
+          <h3 class="card-title" style="margin:0">🏷️ Leave Types</h3>
+          <button class="btn btn-primary btn-sm" onclick="openAddLeaveType()">➕ Add Leave Type</button>
+        </div>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Mark each leave type <strong>Paid</strong> or <strong>Unpaid</strong>. Paid leave days are paid in full and never reduce salary. Unpaid leave days are deducted exactly like an absence. Annual Leave and Sick Leave are pre-set — change them any time, or add your own types.</p>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Leave Type</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="leave-type-tbody"><tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#78909c">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
+          <h3 class="card-title" style="margin:0">📅 Leave Records</h3>
+          <button class="btn btn-primary" onclick="openAddLeave()">➕ Record Leave</button>
+        </div>
+        <div class="form-row" style="margin-bottom:.8rem">
+          <div class="form-group"><label>From</label><input type="date" id="lv-from"></div>
+          <div class="form-group"><label>To</label><input type="date" id="lv-to"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+          <button class="btn btn-dark" onclick="loadLeave()">🔍 Search</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="exportData('leave','excel',{start:gv('lv-from'),end:gv('lv-to')})">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('leave','word',{start:gv('lv-from'),end:gv('lv-to')})">📝 Word</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('leave','pdf',{start:gv('lv-from'),end:gv('lv-to')})">📄 PDF</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Employee</th><th>Leave Type</th><th>Start</th><th>End</th><th>Days</th><th>Paid?</th><th>Notes</th><th>Edit</th></tr></thead>
+          <tbody id="leave-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">Search above</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- NOTES -->
+    <div id="notes" class="tab-content">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.5rem">
+          <h3 class="card-title" style="margin:0">📝 Monthly Notes</h3>
+          <div class="form-group" style="margin:0"><input type="month" id="notes-month" onchange="loadNotes()"></div>
+        </div>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Keep a private note per employee for the selected month — performance, warnings, praise, anything worth remembering.</p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem">
+          <button class="btn btn-outline btn-sm" onclick="exportNotes('excel')">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="exportNotes('word')">📝 Word</button>
+          <button class="btn btn-outline btn-sm" onclick="exportNotes('pdf')">📄 PDF</button>
+        </div>
+        <div id="notes-list"></div>
+      </div>
+    </div>
+
     <!-- SALARY -->
     <div id="salary" class="tab-content">
       <div class="card">
@@ -156,10 +221,16 @@ body{font-family:var(--font)}
           <div class="form-group"><label>Year</label><input type="number" id="sal-yr" placeholder="2026"></div>
           <div class="form-group"><label>Month (1-12)</label><input type="number" id="sal-mo" placeholder="6" min="1" max="12"></div>
         </div>
-        <button class="btn btn-dark" onclick="loadSalHistory()">📂 Load</button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-dark" onclick="loadSalHistory()">📂 Load</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-outline btn-sm" onclick="exportData('salary','excel',{year:gv('sal-yr'),month:gv('sal-mo')})">📊 Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('salary','word',{year:gv('sal-yr'),month:gv('sal-mo')})">📝 Word</button>
+          <button class="btn btn-outline btn-sm" onclick="exportData('salary','pdf',{year:gv('sal-yr'),month:gv('sal-mo')})">📄 PDF</button>
+        </div>
         <div class="tbl-wrap" style="margin-top:1rem"><table class="tbl">
-          <thead><tr><th>Employee</th><th>Month</th><th>Base</th><th>Present</th><th>Absent</th><th>Late Days</th><th>OT Hours</th><th>Deductions</th><th>Net Salary</th><th>Paid</th></tr></thead>
-          <tbody id="sal-hist-tbody"><tr><td colspan="10" style="text-align:center;color:#78909c;padding:1.5rem">Enter year & month above</td></tr></tbody>
+          <thead><tr><th>Employee</th><th>Month</th><th>Type</th><th>Base/Rate</th><th>Present</th><th>Paid Leave</th><th>Unpaid Leave</th><th>Absent</th><th>Late Days</th><th>OT Hours</th><th>Deductions</th><th>Net Salary</th><th>Paid</th></tr></thead>
+          <tbody id="sal-hist-tbody"><tr><td colspan="13" style="text-align:center;color:#78909c;padding:1.5rem">Enter year & month above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -171,14 +242,22 @@ body{font-family:var(--font)}
         <div class="form-row" style="margin-bottom:1.5rem">
           <div>
             <div class="form-group"><label>Daily Report Date</label><input type="date" id="rpt-date"></div>
-            <button class="btn btn-primary" onclick="dlReport('daily')">📥 Daily Excel</button>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="dlReport('daily','excel')">📊 Excel</button>
+              <button class="btn btn-primary btn-sm" onclick="dlReport('daily','word')">📝 Word</button>
+              <button class="btn btn-primary btn-sm" onclick="dlReport('daily','pdf')">📄 PDF</button>
+            </div>
           </div>
           <div>
             <div class="form-group"><label>Monthly Report</label><input type="month" id="rpt-month"></div>
-            <button class="btn btn-dark" onclick="dlReport('monthly')">📥 Monthly Excel</button>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <button class="btn btn-dark btn-sm" onclick="dlReport('monthly','excel')">📊 Excel</button>
+              <button class="btn btn-dark btn-sm" onclick="dlReport('monthly','word')">📝 Word</button>
+              <button class="btn btn-dark btn-sm" onclick="dlReport('monthly','pdf')">📄 PDF</button>
+            </div>
           </div>
         </div>
-        <p style="color:#78909c;font-size:.85rem">Monthly: 3 sheets — Attendance Summary, Salary Breakdown, Daily Log.</p>
+        <p style="color:#78909c;font-size:.85rem">Monthly report includes: Attendance Summary, Salary Breakdown, Daily Log, Leave, and Monthly Notes.</p>
       </div>
       <div class="card">
         <h3 class="card-title">💾 Database Backup</h3>
@@ -445,6 +524,50 @@ body{font-family:var(--font)}
   <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
     <button class="btn btn-outline" onclick="closeM('att-add-modal')">Cancel</button>
     <button class="btn btn-primary" onclick="saveManualAtt()">💾 Add</button>
+  </div>
+</div>
+</div>
+
+<!-- Leave Type -->
+<div id="leave-type-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3 id="lt-modal-title">➕ Add Leave Type</h3><button class="modal-close" onclick="closeM('leave-type-modal')">&times;</button></div>
+  <input type="hidden" id="lt-id">
+  <div class="form-group"><label>Name *</label><input type="text" id="lt-name" placeholder="e.g. Maternity Leave"></div>
+  <div class="form-group"><label>Paid or Unpaid?</label>
+    <select id="lt-paid">
+      <option value="1">✅ Paid — full salary, no deduction</option>
+      <option value="0">🚫 Unpaid — deducted like an absence</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('leave-type-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveLeaveType()">💾 Save</button>
+  </div>
+</div>
+</div>
+
+<!-- Leave Record -->
+<div id="leave-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3 id="leave-modal-title">➕ Record Leave</h3><button class="modal-close" onclick="closeM('leave-modal')">&times;</button></div>
+  <input type="hidden" id="lv-id">
+  <div class="form-group"><label>Employee *</label><select id="lv-emp"></select></div>
+  <div class="form-group"><label>Leave Type *</label><select id="lv-type" onchange="lvTypeChanged()"></select></div>
+  <div class="form-row">
+    <div class="form-group"><label>Start Date *</label><input type="date" id="lv-start"></div>
+    <div class="form-group"><label>End Date *</label><input type="date" id="lv-end"></div>
+  </div>
+  <div class="form-group"><label>Paid?</label>
+    <select id="lv-paid"><option value="1">✅ Paid</option><option value="0">🚫 Unpaid</option></select>
+  </div>
+  <div class="form-group"><label>Notes</label><input type="text" id="lv-notes" placeholder="optional"></div>
+  <div style="display:flex;justify-content:space-between;margin-top:1rem">
+    <button class="btn btn-danger btn-sm" id="lv-delete-btn" style="display:none" onclick="deleteLeaveRec()">🗑 Delete</button>
+    <div style="display:flex;gap:.5rem;margin-left:auto">
+      <button class="btn btn-outline" onclick="closeM('leave-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLeave()">💾 Save</button>
+    </div>
   </div>
 </div>
 </div>

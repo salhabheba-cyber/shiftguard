@@ -4,4 +4,6 @@ flask-login
 werkzeug
 waitress
 openpyxl
+python-docx
+fpdf2
 gunicorn

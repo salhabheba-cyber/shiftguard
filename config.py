@@ -22,6 +22,24 @@ PIN_LENGTH             = 4
 SESSION_HOURS          = 8
 PHOTO_MAX_MB           = 5
 
+# ── SALARY CALCULATION ─────────────────────────────────────────────────────
+# How much of an employee's per-minute rate is deducted for each minute they
+# arrive late. 1.0 = full/accurate rate (10 min late = 10 min of pay lost).
+# Lower it (e.g. 0.5) to only dock half rate as a leniency policy.
+LATE_DEDUCTION_FACTOR  = 1.0
+# Pay multiplier applied to overtime hours (1.5 = time-and-a-half).
+OVERTIME_MULTIPLIER    = 1.5
+
+# ── LEAVE TYPES (seeded once; fully editable afterwards in Admin → Leave) ──
+# (name, is_paid) — Annual Leave and Sick Leave default to PAID, but every
+# type's paid/unpaid flag can be changed per-business in the dashboard.
+DEFAULT_LEAVE_TYPES = [
+    ('Annual Leave',      1),
+    ('Sick Leave',        1),
+    ('Unpaid Leave',      0),
+    ('Personal / Other',  0),
+]
+
 DEFAULT_BLOCKED_SITES = [
     ('tiktok.com',    'social_media'),
     ('facebook.com',  'social_media'),

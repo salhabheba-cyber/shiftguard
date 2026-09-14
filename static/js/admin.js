@@ -1,6 +1,6 @@
 // ShiftGuard — Admin Dashboard
 
-let allEmployees=[], allBranches=[], gBranch='', resetPinId=null;
+let allEmployees=[], allBranches=[], allLeaveTypes=[], allLeaveRecords=[], gBranch='', resetPinId=null;
 
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.nav-link').forEach(l=>
@@ -11,10 +11,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   sv('att-to',today);sv('rpt-date',today);sv('rpt-month',month);
   sv('sal-month',month);sv('att-add-date',today);
   sv('ph-from',new Date(Date.now()-7*864e5).toISOString().split('T')[0]);sv('ph-to',today);
+  sv('lv-from',new Date(Date.now()-30*864e5).toISOString().split('T')[0]);
+  sv('lv-to',new Date(Date.now()+60*864e5).toISOString().split('T')[0]);
+  sv('notes-month',month);
   loadAll();
 });
 
-async function loadAll(){await loadBranches();loadDashboard();loadEmployees();loadBlocked();loadAdmins();}
+async function loadAll(){await loadBranches();loadDashboard();loadEmployees();loadBlocked();loadAdmins();loadLeaveTypes();}
 
 function sv(id,v){const e=document.getElementById(id);if(e)e.value=v;}
 function gv(id){const e=document.getElementById(id);return e?e.value:'';}
@@ -50,10 +53,22 @@ function switchTab(name){
   if(name==='attendance')loadAttendance();
   if(name==='employees')loadEmployees();
   if(name==='branches')loadBranches();
+  if(name==='leave'){loadLeaveTypes();loadLeave();}
+  if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
   if(name==='settings')loadAdmins();
   if(name==='photos')loadPhotos();
+}
+
+function exportData(section,fmt,params){
+  var qs=Object.keys(params||{}).filter(function(k){
+    var v=params[k];return v!==undefined&&v!==null&&v!=='';
+  }).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');
+  if(gBranch&&(!params||!('branch_id' in params)))qs+=(qs?'&':'')+'branch_id='+gBranch;
+  var url='/api/admin/export/'+section+'/'+fmt+(qs?'?'+qs:'');
+  msg('info','Generating '+fmt.toUpperCase()+'...');
+  window.open(url,'_blank');
 }
 
 async function loadDashboard(){
@@ -191,23 +206,166 @@ async function calcSalary(){
   var d=await api('/api/admin/salary/calculate','POST',{year:year,month:month,employee_id:eid||null});
   if(!d.success)return msg('err','Failed');
   msg('ok','Calculated '+d.records.length+' record(s)');
-  document.getElementById('sal-results').innerHTML=(d.records||[]).map(function(r){return'<div class="sal-card"><h4 style="color:var(--dark);margin-bottom:.8rem">👤 '+r.employee_name+' — '+r.year+'/'+String(r.month).padStart(2,'0')+'</h4><div class="sal-row"><span>Base Salary</span><span>$'+r.base_salary.toLocaleString()+'</span></div><div class="sal-row"><span>Days Present / Scheduled</span><span>'+r.days_present+' / '+r.working_days+'</span></div><div class="sal-row"><span>Absent Deduction</span><span class="ded">−$'+r.absent_deduction.toFixed(2)+'</span></div><div class="sal-row"><span>Late Deduction ('+r.total_late_min+' min)</span><span class="ded">−$'+r.late_deduction.toFixed(2)+'</span></div><div class="sal-row"><span>Overtime Pay ('+r.overtime_hours+'h)</span><span class="add">+$'+r.overtime_pay.toFixed(2)+'</span></div><div class="sal-row"><span>NET SALARY</span><span>$'+r.net_salary.toLocaleString()+'</span></div></div>';}).join('');
+  document.getElementById('sal-results').innerHTML=(d.records||[]).map(function(r){
+    var isHourly=r.salary_type==='hourly';
+    var baseLabel=isHourly?'Hourly Rate':'Base Salary';
+    var baseVal=isHourly?('$'+r.base_salary.toLocaleString()+' / hour'):('$'+r.base_salary.toLocaleString());
+    var rows='<div class="sal-row"><span>'+baseLabel+'</span><span>'+baseVal+'</span></div>';
+    rows+='<div class="sal-row"><span>Days Present / Scheduled</span><span>'+r.days_present+' / '+r.working_days+'</span></div>';
+    if(r.days_leave_paid>0)rows+='<div class="sal-row"><span>🌴 Paid Leave Days</span><span class="add">'+r.days_leave_paid+'</span></div>';
+    if(r.days_leave_unpaid>0)rows+='<div class="sal-row"><span>🌴 Unpaid Leave Days</span><span class="ded">'+r.days_leave_unpaid+'</span></div>';
+    if(!isHourly){
+      rows+='<div class="sal-row"><span>Absent + Unpaid Leave Deduction</span><span class="ded">−$'+r.absent_deduction.toFixed(2)+'</span></div>';
+      rows+='<div class="sal-row"><span>Late Deduction ('+r.total_late_min+' min)</span><span class="ded">−$'+r.late_deduction.toFixed(2)+'</span></div>';
+    }else if(r.leave_pay>0){
+      rows+='<div class="sal-row"><span>Paid Leave Pay</span><span class="add">+$'+r.leave_pay.toFixed(2)+'</span></div>';
+    }
+    rows+='<div class="sal-row"><span>Overtime Pay ('+r.overtime_hours+'h)</span><span class="add">+$'+r.overtime_pay.toFixed(2)+'</span></div>';
+    rows+='<div class="sal-row"><span>NET SALARY</span><span>$'+r.net_salary.toLocaleString()+'</span></div>';
+    return '<div class="sal-card"><h4 style="color:var(--dark);margin-bottom:.8rem">👤 '+r.employee_name+' — '+r.year+'/'+String(r.month).padStart(2,'0')+' <span class="badge '+(isHourly?'b-blue':'b-green')+'" style="margin-left:.4rem">'+(isHourly?'Hourly':'Monthly')+'</span></h4>'+rows+'</div>';
+  }).join('');
 }
 async function loadSalHistory(){
   var yr=gv('sal-yr');var mo=gv('sal-mo');
   var url='/api/admin/salary/records?';if(yr)url+='year='+yr+'&';if(mo)url+='month='+mo;
   var d=await api(url);var tb=document.getElementById('sal-hist-tbody');
-  if(!(d.records||[]).length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:#78909c;padding:1.5rem">No records</td></tr>';return;}
-  tb.innerHTML=(d.records||[]).map(function(r){return'<tr><td><strong>'+r.name+'</strong></td><td>'+r.year+'/'+String(r.month).padStart(2,'0')+'</td><td>$'+(r.base_salary||0).toLocaleString()+'</td><td style="color:var(--success)">'+r.days_present+'</td><td style="color:var(--danger)">'+r.days_absent+'</td><td style="color:var(--warning)">'+r.days_late+'</td><td>+'+(r.overtime_hours||0).toFixed(2)+'h</td><td style="color:var(--danger)">−$'+((r.absent_deduction||0)+(r.late_deduction||0)).toFixed(2)+'</td><td><strong style="color:var(--primary)">$'+(r.net_salary||0).toLocaleString()+'</strong></td><td>'+(r.is_paid?'<span class="badge b-green">✅ Paid</span>':'<button class="btn btn-success btn-xs" onclick="markPaid('+r.employee_id+','+r.year+','+r.month+')">Mark Paid</button>')+'</td></tr>';}).join('');
+  if(!(d.records||[]).length){tb.innerHTML='<tr><td colspan="13" style="text-align:center;color:#78909c;padding:1.5rem">No records</td></tr>';return;}
+  tb.innerHTML=(d.records||[]).map(function(r){
+    var isHourly=r.salary_type==='hourly';
+    return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.year+'/'+String(r.month).padStart(2,'0')+'</td><td>'+(isHourly?'Hourly':'Monthly')+'</td><td>$'+(r.base_salary||0).toLocaleString()+(isHourly?'/hr':'')+'</td><td style="color:var(--success)">'+r.days_present+'</td><td style="color:var(--success)">'+(r.days_leave_paid||0)+'</td><td style="color:var(--warning)">'+(r.days_leave_unpaid||0)+'</td><td style="color:var(--danger)">'+r.days_absent+'</td><td style="color:var(--warning)">'+r.days_late+'</td><td>+'+(r.overtime_hours||0).toFixed(2)+'h</td><td style="color:var(--danger)">−$'+((r.absent_deduction||0)+(r.late_deduction||0)).toFixed(2)+'</td><td><strong style="color:var(--primary)">$'+(r.net_salary||0).toLocaleString()+'</strong></td><td>'+(r.is_paid?'<span class="badge b-green">✅ Paid</span>':'<button class="btn btn-success btn-xs" onclick="markPaid('+r.employee_id+','+r.year+','+r.month+')">Mark Paid</button>')+'</td></tr>';
+  }).join('');
 }
 async function markPaid(eid,yr,mo){var d=await api('/api/admin/salary/mark-paid','POST',{employee_id:eid,year:yr,month:mo});if(d.success){msg('ok','Marked as paid');loadSalHistory();}}
 
-function dlReport(type){
+function dlReport(type,fmt){
+  fmt=fmt||'excel';
   var url;
-  if(type==='daily'){var dt=gv('rpt-date');if(!dt)return msg('err','Select a date');url='/api/admin/report/daily?date='+dt;}
-  else{var mo=gv('rpt-month');if(!mo)return msg('err','Select a month');url='/api/admin/report/monthly?month='+mo;}
+  if(type==='daily'){var dt=gv('rpt-date');if(!dt)return msg('err','Select a date');url='/api/admin/report/daily/'+fmt+'?date='+dt;}
+  else{var mo=gv('rpt-month');if(!mo)return msg('err','Select a month');url='/api/admin/report/monthly/'+fmt+'?month='+mo;}
   if(gBranch)url+='&branch_id='+gBranch;
-  msg('info','Generating...');window.open(url,'_blank');
+  msg('info','Generating '+fmt.toUpperCase()+'...');window.open(url,'_blank');
+}
+
+// ── LEAVE TYPES ──────────────────────────────────────────────────────────────
+async function loadLeaveTypes(){
+  var d=await api('/api/admin/leave-types');
+  allLeaveTypes=d.leave_types||[];
+  var tb=document.getElementById('leave-type-tbody');if(!tb)return;
+  if(!allLeaveTypes.length){tb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#78909c">No leave types yet.</td></tr>';return;}
+  tb.innerHTML=allLeaveTypes.map(function(t){
+    var statusBadge=!t.is_active?'<span class="badge b-gray">Inactive</span>':(t.is_paid?'<span class="badge b-green">✅ Paid</span>':'<span class="badge b-yellow">🚫 Unpaid</span>');
+    return '<tr><td><strong>'+t.name+'</strong></td><td>'+statusBadge+'</td><td><button class="btn btn-warn btn-xs" onclick="editLeaveType('+t.id+')">✏️</button> <button class="btn btn-danger btn-xs" onclick="delLeaveType('+t.id+',\''+t.name+'\')">🗑</button></td></tr>';
+  }).join('');
+}
+function openAddLeaveType(){
+  document.getElementById('lt-modal-title').textContent='➕ Add Leave Type';
+  sv('lt-id','');sv('lt-name','');sv('lt-paid','1');
+  openM('leave-type-modal');
+}
+function editLeaveType(id){
+  var t=allLeaveTypes.find(function(x){return x.id===id;});if(!t)return;
+  document.getElementById('lt-modal-title').textContent='✏️ Edit Leave Type';
+  sv('lt-id',t.id);sv('lt-name',t.name);sv('lt-paid',t.is_paid?'1':'0');
+  openM('leave-type-modal');
+}
+async function saveLeaveType(){
+  var id=gv('lt-id');var name=gv('lt-name').trim();
+  if(!name)return msg('err','Name is required');
+  var payload={name:name,is_paid:parseInt(gv('lt-paid'))};
+  var d=await api(id?'/api/admin/leave-types/'+id:'/api/admin/leave-types',id?'PUT':'POST',payload);
+  if(d.success){msg('ok',d.message||'Saved');closeM('leave-type-modal');loadLeaveTypes();}else msg('err',d.message);
+}
+async function delLeaveType(id,name){
+  if(!confirm('Remove leave type "'+name+'"?\n\nExisting leave records already using it keep their own paid/unpaid setting.'))return;
+  await api('/api/admin/leave-types/'+id,'DELETE');msg('ok','Removed');loadLeaveTypes();
+}
+
+// ── LEAVE RECORDS ─────────────────────────────────────────────────────────────
+function populateLeaveEmpSel(){
+  var s=document.getElementById('lv-emp');if(!s)return;
+  s.innerHTML=allEmployees.map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
+}
+function populateLeaveTypeSel(selectedId){
+  var s=document.getElementById('lv-type');if(!s)return;
+  s.innerHTML=allLeaveTypes.filter(function(t){return t.is_active;}).map(function(t){
+    return '<option value="'+t.id+'" data-paid="'+t.is_paid+'"'+(t.id==selectedId?' selected':'')+'>'+t.name+' ('+(t.is_paid?'Paid':'Unpaid')+')</option>';
+  }).join('');
+}
+function lvTypeChanged(){
+  var s=document.getElementById('lv-type');var opt=s.options[s.selectedIndex];
+  if(opt)sv('lv-paid',opt.getAttribute('data-paid'));
+}
+function openAddLeave(){
+  if(!allLeaveTypes.length)return msg('err','Add a leave type first (see Leave Types above)');
+  document.getElementById('leave-modal-title').textContent='➕ Record Leave';
+  sv('lv-id','');document.getElementById('lv-delete-btn').style.display='none';
+  populateLeaveEmpSel();populateLeaveTypeSel();
+  var today=new Date().toISOString().split('T')[0];
+  sv('lv-start',today);sv('lv-end',today);sv('lv-notes','');
+  lvTypeChanged();
+  openM('leave-modal');
+}
+function openEditLeave(id){
+  var r=allLeaveRecords.find(function(x){return x.id===id;});if(!r)return;
+  document.getElementById('leave-modal-title').textContent='✏️ Edit Leave';
+  sv('lv-id',r.id);document.getElementById('lv-delete-btn').style.display='inline-flex';
+  populateLeaveEmpSel();sv('lv-emp',r.employee_id);
+  populateLeaveTypeSel(r.leave_type_id);
+  sv('lv-start',r.start_date);sv('lv-end',r.end_date);sv('lv-paid',r.is_paid?'1':'0');sv('lv-notes',r.notes||'');
+  openM('leave-modal');
+}
+async function saveLeave(){
+  var id=gv('lv-id');
+  var payload={employee_id:parseInt(gv('lv-emp')),leave_type_id:parseInt(gv('lv-type')),
+    start_date:gv('lv-start'),end_date:gv('lv-end')||gv('lv-start'),
+    is_paid:parseInt(gv('lv-paid')),notes:gv('lv-notes')};
+  if(!payload.employee_id||!payload.leave_type_id||!payload.start_date)return msg('err','Employee, leave type and start date are required');
+  var d=await api(id?'/api/admin/leave/'+id:'/api/admin/leave',id?'PUT':'POST',payload);
+  if(d.success){msg('ok',d.message||'Saved');closeM('leave-modal');loadLeave();}else msg('err',d.message);
+}
+async function deleteLeaveRec(){
+  if(!confirm('Delete this leave record? Cannot be undone.'))return;
+  var id=gv('lv-id');
+  await api('/api/admin/leave/'+id,'DELETE');
+  msg('ok','Deleted');closeM('leave-modal');loadLeave();
+}
+async function loadLeave(){
+  var url='/api/admin/leave?start='+gv('lv-from')+'&end='+gv('lv-to');
+  var d=await api(url);
+  allLeaveRecords=d.records||[];
+  var tb=document.getElementById('leave-tbody');
+  if(!allLeaveRecords.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">No leave records found</td></tr>';return;}
+  tb.innerHTML=allLeaveRecords.map(function(r){
+    return '<tr><td><strong>'+r.employee_name+'</strong></td><td>'+r.leave_type_name+'</td><td>'+r.start_date+'</td><td>'+r.end_date+'</td><td>'+r.days+'</td><td>'+(r.is_paid?'<span class="badge b-green">✅ Paid</span>':'<span class="badge b-yellow">🚫 Unpaid</span>')+'</td><td>'+(r.notes||'—')+'</td><td><button class="btn btn-warn btn-xs" onclick="openEditLeave('+r.id+')">✏️</button></td></tr>';
+  }).join('');
+}
+
+// ── MONTHLY NOTES ────────────────────────────────────────────────────────────
+function notesYM(){
+  var mv=gv('notes-month')||new Date().toISOString().substring(0,7);
+  var parts=mv.split('-');return {year:parseInt(parts[0]),month:parseInt(parts[1])};
+}
+async function loadNotes(){
+  var ym=notesYM();
+  var d=await api('/api/admin/notes?year='+ym.year+'&month='+ym.month+(gBranch?'&branch_id='+gBranch:''));
+  var emps=d.employees||[];
+  var list=document.getElementById('notes-list');if(!list)return;
+  if(!emps.length){list.innerHTML='<p style="color:#78909c">No employees found.</p>';return;}
+  list.innerHTML=emps.map(function(e){
+    return '<div class="sal-card"><h4 style="color:var(--dark);margin-bottom:.6rem">👤 '+e.name+' <small style="color:#78909c;font-weight:400">'+(e.position||'')+'</small></h4>'+
+      '<textarea class="note-box" id="note-'+e.id+'" placeholder="Write a note for '+e.name+' this month...">'+(e.note||'')+'</textarea>'+
+      '<div style="text-align:right;margin-top:.5rem"><button class="btn btn-primary btn-sm" onclick="saveNote('+e.id+')">💾 Save Note</button></div></div>';
+  }).join('');
+}
+async function saveNote(eid){
+  var ym=notesYM();
+  var note=gv('note-'+eid);
+  var d=await api('/api/admin/notes','POST',{employee_id:eid,year:ym.year,month:ym.month,note:note});
+  if(d.success)msg('ok','Note saved');else msg('err',d.message);
+}
+function exportNotes(fmt){
+  var ym=notesYM();
+  exportData('notes',fmt,{year:ym.year,month:ym.month});
 }
 
 async function loadPhotos(){
