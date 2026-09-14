@@ -115,6 +115,18 @@ def _maybe_auto_purge_photos():
     except Exception as e:
         logger.error(f"Auto photo purge error: {e}")
 
+def _client_ip():
+    """Real client IP. Railway (and most hosts) sit behind a reverse proxy,
+    so request.remote_addr alone would just be the proxy's internal IP.
+    X-Forwarded-For carries the real device IP — we take the RIGHTMOST entry
+    (the address Railway's own edge appended from the actual TCP connection
+    it saw), not the leftmost, since a malicious client could otherwise
+    prepend a fake IP of their own choosing to the header."""
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        return fwd.split(',')[-1].strip()
+    return request.remote_addr or ''
+
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
 # ══════════════════════════════════════════════════════════════════════════════
@@ -156,7 +168,7 @@ def kiosk_checkin():
     if d.get('photo'):
         photo = save_photo(d['photo'], emp['name'], 'in')
         if not photo: pstat = 'save_failed'
-    ok, msg = database.record_check_in(eid, photo, pstat)
+    ok, msg = database.record_check_in(eid, photo, pstat, _client_ip())
     return jsonify({'success':ok,'message':msg,
                     'photo_path':f'/static/{photo}' if photo else None,
                     'time':datetime.now().strftime('%H:%M')})
@@ -176,7 +188,7 @@ def kiosk_checkout():
     if d.get('photo'):
         photo = save_photo(d['photo'], emp['name'], 'out')
         if not photo: pstat = 'save_failed'
-    ok, msg = database.record_check_out(eid, photo, pstat)
+    ok, msg = database.record_check_out(eid, photo, pstat, _client_ip())
     return jsonify({'success':ok,'message':msg,
                     'photo_path':f'/static/{photo}' if photo else None,
                     'time':datetime.now().strftime('%H:%M')})
@@ -199,16 +211,16 @@ def login_post():
     d    = request.json or {}
     user = database.verify_admin(d.get('username',''), d.get('password',''))
     if not user:
-        database.log_event('login_fail', d.get('username',''), request.remote_addr, 'Wrong password')
+        database.log_event('login_fail', d.get('username',''), _client_ip(), 'Wrong password')
         return jsonify({'success':False,'message':'Invalid username or password'}), 401
     login_user(AdminUser(user), remember=True)
-    database.log_event('login_ok', user['username'], request.remote_addr, '')
+    database.log_event('login_ok', user['username'], _client_ip(), '')
     return jsonify({'success':True})
 
 @app.route('/admin/logout', methods=['POST'])
 @login_required
 def logout():
-    database.log_event('logout', current_user.username, request.remote_addr, '')
+    database.log_event('logout', current_user.username, _client_ip(), '')
     logout_user()
     return jsonify({'success':True})
 
@@ -247,8 +259,10 @@ def api_dashboard():
             'branch_name':     l.get('branch_name',''),
             'check_in':        str(l['check_in'])[:16] if l['check_in'] else None,
             'check_in_photo':  f"/static/{l['check_in_photo']}" if l['check_in_photo'] else None,
+            'check_in_ip':     l.get('check_in_ip') or None,
             'check_out':       str(l['check_out'])[:16] if l['check_out'] else None,
             'check_out_photo': f"/static/{l['check_out_photo']}" if l['check_out_photo'] else None,
+            'check_out_ip':    l.get('check_out_ip') or None,
             'status':          l['status'],
             'minutes_late':    l['minutes_late'] or 0,
             'hours_worked':    round(l['hours_worked'] or 0, 2),
@@ -272,8 +286,10 @@ def api_attendance():
         'date':            l['date'],
         'check_in':        str(l['check_in'])[:19]  if l['check_in']  else '',
         'check_in_photo':  f"/static/{l['check_in_photo']}"  if l['check_in_photo']  else None,
+        'check_in_ip':     l.get('check_in_ip') or None,
         'check_out':       str(l['check_out'])[:19] if l['check_out'] else '',
         'check_out_photo': f"/static/{l['check_out_photo']}" if l['check_out_photo'] else None,
+        'check_out_ip':    l.get('check_out_ip') or None,
         'status':          l['status'] or '',
         'minutes_late':    l['minutes_late'] or 0,
         'hours_worked':    round(l['hours_worked'] or 0, 2),
@@ -576,14 +592,14 @@ def api_apply_hosts():
     sites   = database.get_blocked_sites()
     domains = [s['domain'] for s in sites if s['is_active']]
     ok, msg = network_manager.apply_hosts_blocking(domains)
-    if ok: database.log_event('hosts_applied', current_user.username, request.remote_addr, f'{len(domains)} domains')
+    if ok: database.log_event('hosts_applied', current_user.username, _client_ip(), f'{len(domains)} domains')
     return jsonify({'success':ok,'message':msg})
 
 @app.route('/api/admin/network/remove-hosts', methods=['POST'])
 @api_login_required
 def api_remove_hosts():
     ok, msg = network_manager.remove_hosts_blocking()
-    if ok: database.log_event('hosts_removed', current_user.username, request.remote_addr, '')
+    if ok: database.log_event('hosts_removed', current_user.username, _client_ip(), '')
     return jsonify({'success':ok,'message':msg})
 
 # ── THEME / SETTINGS ───────────────────────────────────────────────────────────
@@ -667,7 +683,7 @@ def api_purge_photos():
         _remove_photo_file(relpath)
     database.purge_photo_refs([(rid, field) for rid, field, _ in old])
     database.mark_photo_purge_ran()
-    database.log_event('photos_manual_purge', current_user.username, request.remote_addr, f'{len(old)} photo(s)')
+    database.log_event('photos_manual_purge', current_user.username, _client_ip(), f'{len(old)} photo(s)')
     return jsonify({'success':True,'deleted':len(old)})
 
 @app.route('/api/admin/photos/bulk-delete', methods=['POST'])
@@ -683,7 +699,7 @@ def api_bulk_delete_photos():
         if r and r[0].get(field): _remove_photo_file(r[0][field])
         pairs.append((rid, field))
     database.delete_photos_bulk(pairs)
-    database.log_event('photos_bulk_delete', current_user.username, request.remote_addr, f'{len(pairs)} photo(s)')
+    database.log_event('photos_bulk_delete', current_user.username, _client_ip(), f'{len(pairs)} photo(s)')
     return jsonify({'success':True,'deleted':len(pairs)})
 
 # ── BACKUP ─────────────────────────────────────────────────────────────────────
@@ -720,10 +736,10 @@ def api_monthly_report(fmt='excel'):
 
 def _daily_sections(day, branch_id=None):
     logs = database.get_attendance_range(day, day, branch_id=branch_id)
-    headers = ['Employee','Branch','Position','Date','Check In','Check Out','Hours','Late(min)','Status']
+    headers = ['Employee','Branch','Position','Date','Check In','Check In IP','Check Out','Check Out IP','Hours','Late(min)','Status']
     rows = [[l['name'], l.get('branch_name',''), l['position'] or '', l['date'],
-             str(l['check_in'])[:16] if l['check_in'] else '—',
-             str(l['check_out'])[:16] if l['check_out'] else '—',
+             str(l['check_in'])[:16] if l['check_in'] else '—', l.get('check_in_ip') or '—',
+             str(l['check_out'])[:16] if l['check_out'] else '—', l.get('check_out_ip') or '—',
              round(l['hours_worked'] or 0,2), l['minutes_late'] or 0, l['status'] or '—'] for l in logs]
     return [('Daily Attendance', headers, rows)]
 
@@ -753,10 +769,10 @@ def _monthly_sections(year, month, branch_id=None):
         sal_rows.append([e['name'], c['salary_type'].title(), c['base_salary'], c['leave_pay'],
                           c['absent_deduction'], c['late_deduction'], c['overtime_pay'], c['net_salary']])
 
-    daily_headers = ['Employee','Date','Check In','Check Out','Hours','OT','Late(min)','Status']
+    daily_headers = ['Employee','Date','Check In','Check In IP','Check Out','Check Out IP','Hours','OT','Late(min)','Status']
     daily_rows = [[l['name'], l['date'],
-                   str(l['check_in'])[:16] if l['check_in'] else '—',
-                   str(l['check_out'])[:16] if l['check_out'] else '—',
+                   str(l['check_in'])[:16] if l['check_in'] else '—', l.get('check_in_ip') or '—',
+                   str(l['check_out'])[:16] if l['check_out'] else '—', l.get('check_out_ip') or '—',
                    round(l['hours_worked'] or 0,2), round(l['overtime_hours'] or 0,2),
                    l['minutes_late'] or 0, l['status'] or '—'] for l in logs]
 
@@ -814,10 +830,10 @@ def _export_data(section):
         end   = request.args.get('end',   date.today().isoformat())
         eid   = request.args.get('employee_id', type=int)
         logs  = database.get_attendance_range(start, end, eid, bid)
-        headers = ['Employee','Branch','Date','Check In','Check Out','Hours','OT','Late(min)','Status','Notes']
+        headers = ['Employee','Branch','Date','Check In','Check In IP','Check Out','Check Out IP','Hours','OT','Late(min)','Status','Notes']
         rows = [[l['name'], l.get('branch_name',''), l['date'],
-                 str(l['check_in'])[:16] if l['check_in'] else '—',
-                 str(l['check_out'])[:16] if l['check_out'] else '—',
+                 str(l['check_in'])[:16] if l['check_in'] else '—', l.get('check_in_ip') or '—',
+                 str(l['check_out'])[:16] if l['check_out'] else '—', l.get('check_out_ip') or '—',
                  round(l['hours_worked'] or 0,2), round(l['overtime_hours'] or 0,2),
                  l['minutes_late'] or 0, l['status'] or '—', l['notes'] or ''] for l in logs]
         return f'Attendance Records ({start} to {end})', headers, rows, f'ShiftGuard_Attendance_{start}_{end}'

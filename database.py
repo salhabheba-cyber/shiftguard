@@ -191,6 +191,10 @@ def init_db():
         ('days_leave_unpaid','INTEGER DEFAULT 0'),
         ('leave_pay',        'REAL DEFAULT 0'),
     ])
+    _ensure_columns('attendance', [
+        ('check_in_ip',  'TEXT'),
+        ('check_out_ip', 'TEXT'),
+    ])
 
 def _table_columns(table):
     return {r['name'] for r in q(f'PRAGMA table_info({table})')}
@@ -337,7 +341,7 @@ def get_attendance_record(eid, date_str):
     r = q('SELECT * FROM attendance WHERE employee_id=? AND date=?', (eid, date_str))
     return r[0] if r else None
 
-def record_check_in(eid, photo_path=None, photo_status='ok'):
+def record_check_in(eid, photo_path=None, photo_status='ok', ip=None):
     emp   = get_employee(eid)
     if not emp: return False, "Employee not found"
     today = date.today().isoformat()
@@ -349,13 +353,13 @@ def record_check_in(eid, photo_path=None, photo_status='ok'):
     mins_late = max(0, int((now - shift_start).total_seconds() / 60))
     status    = 'late' if mins_late > config.LATE_THRESHOLD_MINUTES else 'on_time'
     run('''INSERT INTO attendance
-           (employee_id,branch_id,date,check_in,check_in_photo,check_in_status,status,minutes_late)
-           VALUES (?,?,?,?,?,?,?,?)''',
-        (eid, emp['branch_id'], today, now, photo_path, photo_status, status, mins_late))
-    log_event('check_in', emp['name'], '', f"Status:{status} Late:{mins_late}min")
+           (employee_id,branch_id,date,check_in,check_in_photo,check_in_status,check_in_ip,status,minutes_late)
+           VALUES (?,?,?,?,?,?,?,?,?)''',
+        (eid, emp['branch_id'], today, now, photo_path, photo_status, ip, status, mins_late))
+    log_event('check_in', emp['name'], ip or '', f"Status:{status} Late:{mins_late}min")
     return True, f"Welcome, {emp['name']}! Checked in at {now.strftime('%H:%M')}"
 
-def record_check_out(eid, photo_path=None, photo_status='ok'):
+def record_check_out(eid, photo_path=None, photo_status='ok', ip=None):
     emp = get_employee(eid)
     if not emp: return False, "Employee not found"
     today = date.today().isoformat()
@@ -372,10 +376,10 @@ def record_check_out(eid, photo_path=None, photo_status='ok'):
     sched  = (shift_end - shift_start).total_seconds() / 3600
     ot     = max(0, hrs - sched)
     status = 'completed' if now >= shift_end else 'early_departure'
-    run('''UPDATE attendance SET check_out=?,check_out_photo=?,check_out_status=?,
+    run('''UPDATE attendance SET check_out=?,check_out_photo=?,check_out_status=?,check_out_ip=?,
            hours_worked=?,overtime_hours=?,status=? WHERE id=?''',
-        (now, photo_path, photo_status, round(hrs,2), round(ot,2), status, rec['id']))
-    log_event('check_out', emp['name'], '', f"Hours:{hrs:.2f} OT:{ot:.2f}")
+        (now, photo_path, photo_status, ip, round(hrs,2), round(ot,2), status, rec['id']))
+    log_event('check_out', emp['name'], ip or '', f"Hours:{hrs:.2f} OT:{ot:.2f}")
     return True, f"Goodbye, {emp['name']}! Checked out at {now.strftime('%H:%M')}"
 
 def admin_edit_attendance(rid, check_in=None, check_out=None, notes=None, admin='admin'):

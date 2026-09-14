@@ -35,6 +35,7 @@ async function api(url,method,body){
 function fmtT(ts){if(!ts)return'—';try{return new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}catch{return(ts+'').substring(11,16)||'—';}}
 function fmtDT(ts){if(!ts)return'';try{return new Date(ts).toISOString().substring(0,16);}catch{return(ts+'').substring(0,16);}}
 function badge(s){var m={on_time:'b-green',completed:'b-green',late:'b-yellow',early_departure:'b-yellow',pending:'b-blue',absent:'b-red'};return'<span class="badge '+(m[s]||'b-gray')+'">'+(s||'—')+'</span>';}
+function ipTag(ip){return ip?'<br><small class="ip-tag">🌐 '+ip+'</small>':'';}
 function thumb(url,id,field){
   if(!url)return'<span class="no-photo">—</span>';
   return'<img class="photo-thumb" src="'+url+'" onclick="showLightbox(\''+url+'\')" alt="photo"><button class="btn btn-danger btn-xs" style="margin-left:.2rem" onclick="delPhoto('+id+',\''+field+'\')">🗑</button>';
@@ -81,7 +82,7 @@ async function loadDashboard(){
   document.getElementById('today-date').textContent=d.today||'';
   var tb=document.getElementById('today-tbody');
   if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:2rem;color:#78909c">No check-ins yet today</td></tr>';return;}
-  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong><br><small style="color:#78909c">'+l.position+'</small></td><td>'+(l.branch_name||'—')+'</td><td>'+(l.check_in?fmtT(l.check_in):'—')+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+(l.check_out?fmtT(l.check_out):'—')+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td></tr>';}).join('');
+  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong><br><small style="color:#78909c">'+l.position+'</small></td><td>'+(l.branch_name||'—')+'</td><td>'+(l.check_in?fmtT(l.check_in):'—')+ipTag(l.check_in_ip)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+(l.check_out?fmtT(l.check_out):'—')+ipTag(l.check_out_ip)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td></tr>';}).join('');
 }
 
 async function loadAttendance(){
@@ -89,7 +90,7 @@ async function loadAttendance(){
   var d=await api(url);
   var tb=document.getElementById('att-tbody');
   if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:2rem;color:#78909c">No records found</td></tr>';return;}
-  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong></td><td>'+(l.branch_name||'—')+'</td><td>'+l.date+'</td><td>'+fmtT(l.check_in)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+fmtT(l.check_out)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td><td><button class="btn btn-warn btn-xs" onclick="openEditAtt('+l.id+',\''+l.check_in+'\',\''+l.check_out+'\',\''+l.notes+'\')">✏️</button></td></tr>';}).join('');
+  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong></td><td>'+(l.branch_name||'—')+'</td><td>'+l.date+'</td><td>'+fmtT(l.check_in)+ipTag(l.check_in_ip)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+fmtT(l.check_out)+ipTag(l.check_out_ip)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td><td><button class="btn btn-warn btn-xs" onclick="openEditAtt('+l.id+',\''+l.check_in+'\',\''+l.check_out+'\',\''+l.notes+'\')">✏️</button></td></tr>';}).join('');
 }
 
 function openEditAtt(id,ci,co,notes){sv('att-edit-id',id);sv('att-ci',fmtDT(ci));sv('att-co',fmtDT(co));sv('att-notes',notes||'');openM('att-modal');}
