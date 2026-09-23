@@ -587,6 +587,29 @@ def api_del_blocked(sid):
         nextdns.remove_domain(api_key, profile_id, domain)
     return jsonify({'success':True})
 
+# ── WIFI NETWORKS ────────────────────────────────────────────────────────────────
+@app.route('/api/admin/wifi-networks', methods=['GET'])
+@api_login_required
+def api_wifi_list():
+    return jsonify({'networks': database.get_wifi_networks()})
+
+@app.route('/api/admin/wifi-networks', methods=['POST'])
+@api_login_required
+def api_wifi_add():
+    d    = request.json or {}
+    ssid = d.get('ssid','').strip()
+    if not ssid:
+        return jsonify({'success':False,'message':'Network name is required'}), 400
+    database.add_wifi_network(ssid, d.get('password',''), d.get('label',''))
+    database.log_event('wifi_added', current_user.username, _client_ip(), ssid)
+    return jsonify({'success':True,'message':'Saved'})
+
+@app.route('/api/admin/wifi-networks/<int:wid>', methods=['DELETE'])
+@api_login_required
+def api_wifi_del(wid):
+    database.remove_wifi_network(wid)
+    return jsonify({'success':True})
+
 # ── NETWORK SECURITY ───────────────────────────────────────────────────────────
 @app.route('/api/admin/network/info')
 @api_login_required

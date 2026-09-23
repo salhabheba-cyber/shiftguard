@@ -289,6 +289,25 @@ body{font-family:var(--font)}
 
     <!-- SECURITY -->
     <div id="security" class="tab-content">
+      <!-- WiFi Networks -->
+      <div class="card">
+        <h3 class="card-title">📶 WiFi Networks</h3>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">
+          Keep your spa's WiFi name and password here for reference — handy when you're on the router's
+          admin page setting up NextDNS below, or handing WiFi access to staff.
+        </p>
+        <div class="form-row" style="margin-bottom:1rem">
+          <div class="form-group"><label>Network Name (SSID)</label><input type="text" id="wifi-ssid" placeholder="e.g. MySpa-Staff"></div>
+          <div class="form-group"><label>Password</label><input type="text" id="wifi-pass" placeholder="WiFi password"></div>
+          <div class="form-group"><label>Label</label><input type="text" id="wifi-label" placeholder="e.g. Staff / Guest"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-bottom:1.2rem" onclick="addWifi()">➕ Add Network</button>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>SSID</th><th>Label</th><th>Password</th><th>Action</th></tr></thead>
+          <tbody id="wifi-tbody"></tbody>
+        </table></div>
+      </div>
+
       <!-- Network Overview -->
       <div class="card">
         <h3 class="card-title">📡 Network Overview</h3>

@@ -57,7 +57,7 @@ function switchTab(name){
   if(name==='leave'){loadLeaveTypes();loadLeave();}
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
-  if(name==='security'){loadBlocked();loadNetworkInfo();loadNextDNS();}
+  if(name==='security'){loadWifi();loadBlocked();loadNetworkInfo();loadNextDNS();}
   if(name==='settings'){loadAdmins();loadPhotoSettings();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
@@ -425,6 +425,30 @@ async function purgePhotosNow(){
     var photosTab=document.getElementById('photos');
     if(photosTab&&photosTab.classList.contains('active'))loadPhotos();
   }else msg('err',d.message||'Cleanup failed');
+}
+
+async function loadWifi(){
+  var d=await api('/api/admin/wifi-networks');var tb=document.getElementById('wifi-tbody');
+  tb.innerHTML=(d.networks||[]).map(function(n){
+    return '<tr><td><strong>'+n.ssid+'</strong></td><td>'+(n.label||'—')+'</td>'+
+      '<td><span id="wp-'+n.id+'" data-pw="'+n.password.replace(/"/g,'&quot;')+'">'+'•'.repeat(Math.min(n.password.length,10)||1)+'</span> '+
+      '<button class="btn btn-outline btn-xs" onclick="toggleWifiPw('+n.id+')">👁</button></td>'+
+      '<td><button class="btn btn-danger btn-xs" onclick="delWifi('+n.id+')">Remove</button></td></tr>';
+  }).join('')||'<tr><td colspan="4" style="text-align:center;color:#78909c;padding:1rem">No WiFi networks saved</td></tr>';
+}
+function toggleWifiPw(id){
+  var el=document.getElementById('wp-'+id);var pw=el.getAttribute('data-pw');
+  var hidden='•'.repeat(Math.min(pw.length,10)||1);
+  el.textContent = el.textContent===hidden ? pw : hidden;
+}
+async function addWifi(){
+  var ssid=gv('wifi-ssid').trim();if(!ssid)return msg('err','Enter a network name');
+  var d=await api('/api/admin/wifi-networks','POST',{ssid:ssid,password:gv('wifi-pass'),label:gv('wifi-label').trim()});
+  if(d.success){msg('ok','Saved');sv('wifi-ssid','');sv('wifi-pass','');sv('wifi-label','');loadWifi();}else msg('err',d.message);
+}
+async function delWifi(id){
+  if(!confirm('Remove this WiFi network?'))return;
+  await api('/api/admin/wifi-networks/'+id,'DELETE');msg('ok','Removed');loadWifi();
 }
 
 async function loadBlocked(){
