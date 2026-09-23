@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports
+import config, database, network_manager, nextdns, reports
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -126,6 +126,9 @@ def _client_ip():
     if fwd:
         return fwd.split(',')[-1].strip()
     return request.remote_addr or ''
+
+def _nextdns_config():
+    return database.get_setting('nextdns_api_key', ''), database.get_setting('nextdns_profile_id', '')
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
@@ -563,14 +566,48 @@ def api_blocked():
 @app.route('/api/admin/blocked-sites', methods=['POST'])
 @api_login_required
 def api_add_blocked():
-    d  = request.json or {}
-    ok = database.add_blocked_site(d.get('domain',''), d.get('category','restricted'))
-    return jsonify({'success':ok,'message':'Added' if ok else 'Already exists'})
+    d      = request.json or {}
+    domain = d.get('domain','').strip().lower()
+    ok     = database.add_blocked_site(domain, d.get('category','restricted'))
+    msg    = 'Added' if ok else 'Already exists'
+    api_key, profile_id = _nextdns_config()
+    if ok and api_key:
+        synced, err = nextdns.add_domain(api_key, profile_id, domain)
+        msg += ' — synced to NextDNS (all WiFi networks)' if synced else f' — NextDNS sync failed: {err}'
+    return jsonify({'success':ok,'message':msg})
 
 @app.route('/api/admin/blocked-sites/<int:sid>', methods=['DELETE'])
 @api_login_required
 def api_del_blocked(sid):
+    sites  = {s['id']: s['domain'] for s in database.get_blocked_sites()}
+    domain = sites.get(sid)
     database.remove_blocked_site(sid)
+    api_key, profile_id = _nextdns_config()
+    if domain and api_key:
+        nextdns.remove_domain(api_key, profile_id, domain)
+    return jsonify({'success':True})
+
+# ── WIFI NETWORKS ────────────────────────────────────────────────────────────────
+@app.route('/api/admin/wifi-networks', methods=['GET'])
+@api_login_required
+def api_wifi_list():
+    return jsonify({'networks': database.get_wifi_networks()})
+
+@app.route('/api/admin/wifi-networks', methods=['POST'])
+@api_login_required
+def api_wifi_add():
+    d    = request.json or {}
+    ssid = d.get('ssid','').strip()
+    if not ssid:
+        return jsonify({'success':False,'message':'Network name is required'}), 400
+    database.add_wifi_network(ssid, d.get('password',''), d.get('label',''))
+    database.log_event('wifi_added', current_user.username, _client_ip(), ssid)
+    return jsonify({'success':True,'message':'Saved'})
+
+@app.route('/api/admin/wifi-networks/<int:wid>', methods=['DELETE'])
+@api_login_required
+def api_wifi_del(wid):
+    database.remove_wifi_network(wid)
     return jsonify({'success':True})
 
 # ── NETWORK SECURITY ───────────────────────────────────────────────────────────
@@ -601,6 +638,50 @@ def api_remove_hosts():
     ok, msg = network_manager.remove_hosts_blocking()
     if ok: database.log_event('hosts_removed', current_user.username, _client_ip(), '')
     return jsonify({'success':ok,'message':msg})
+
+# ── NEXTDNS (network-wide blocking, all WiFi networks / routers) ───────────────
+@app.route('/api/admin/network/nextdns', methods=['GET'])
+@api_login_required
+def api_nextdns_get():
+    api_key, profile_id = _nextdns_config()
+    connected = False
+    if api_key and profile_id:
+        connected, _ = nextdns.test_connection(api_key, profile_id)
+    return jsonify({
+        'configured': bool(api_key and profile_id),
+        'connected': connected,
+        'profile_id': profile_id,
+        'api_key_set': bool(api_key)
+    })
+
+@app.route('/api/admin/network/nextdns', methods=['POST'])
+@api_login_required
+def api_nextdns_save():
+    d          = request.json or {}
+    api_key    = d.get('api_key','').strip()
+    profile_id = d.get('profile_id','').strip()
+    if not api_key or not profile_id:
+        return jsonify({'success':False,'message':'API key and Profile ID are required'}), 400
+    ok, message = nextdns.test_connection(api_key, profile_id)
+    if not ok:
+        return jsonify({'success':False,'message':f'Could not connect: {message}'}), 400
+    database.set_setting('nextdns_api_key', api_key)
+    database.set_setting('nextdns_profile_id', profile_id)
+    database.log_event('nextdns_configured', current_user.username, _client_ip(), profile_id)
+    return jsonify({'success':True,'message':message})
+
+@app.route('/api/admin/network/nextdns/sync', methods=['POST'])
+@api_login_required
+def api_nextdns_sync():
+    api_key, profile_id = _nextdns_config()
+    if not api_key or not profile_id:
+        return jsonify({'success':False,'message':'NextDNS is not configured yet'}), 400
+    domains = [s['domain'] for s in database.get_blocked_sites() if s['is_active']]
+    added, failed = nextdns.sync_all(api_key, profile_id, domains)
+    database.log_event('nextdns_synced', current_user.username, _client_ip(), f'{added} added, {len(failed)} failed')
+    msg = f'Synced {added} domain(s) to NextDNS'
+    if failed: msg += f' — failed: {", ".join(failed)}'
+    return jsonify({'success':True,'message':msg,'added':added,'failed':failed})
 
 # ── THEME / SETTINGS ───────────────────────────────────────────────────────────
 @app.route('/api/admin/theme', methods=['GET'])

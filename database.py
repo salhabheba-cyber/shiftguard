@@ -109,6 +109,13 @@ def init_db():
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS wifi_networks (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ssid       TEXT NOT NULL,
+            password   TEXT DEFAULT '',
+            label      TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE TABLE IF NOT EXISTS access_logs (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             event_type TEXT NOT NULL,
@@ -702,6 +709,17 @@ def add_blocked_site(domain, category='restricted'):
 
 def remove_blocked_site(sid):
     run('DELETE FROM blocked_sites WHERE id=?', (sid,))
+
+# ── WIFI NETWORKS ────────────────────────────────────────────────────────────
+def get_wifi_networks():
+    return q('SELECT * FROM wifi_networks ORDER BY created_at')
+
+def add_wifi_network(ssid, password='', label=''):
+    return run('INSERT INTO wifi_networks (ssid,password,label) VALUES (?,?,?)',
+               (ssid.strip(), password, label.strip()))
+
+def remove_wifi_network(wid):
+    run('DELETE FROM wifi_networks WHERE id=?', (wid,))
 
 # ── ACCESS LOGS ────────────────────────────────────────────────────────────────
 def log_event(event_type, user='', ip='', details=''):
