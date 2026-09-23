@@ -57,7 +57,7 @@ function switchTab(name){
   if(name==='leave'){loadLeaveTypes();loadLeave();}
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
-  if(name==='security'){loadBlocked();loadNetworkInfo();}
+  if(name==='security'){loadBlocked();loadNetworkInfo();loadNextDNS();}
   if(name==='settings'){loadAdmins();loadPhotoSettings();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
@@ -476,6 +476,33 @@ async function removeHosts(){
   if(!confirm('Remove ALL blocks from this computer?'))return;
   var d=await api('/api/admin/network/remove-hosts','POST');
   if(d.success){msg('ok',d.message);loadNetworkInfo();}else msg('err',d.message);
+}
+
+async function loadNextDNS(){
+  try{
+    var d=await api('/api/admin/network/nextdns');
+    var st=document.getElementById('nd-status');
+    if(d.configured){
+      st.textContent=d.connected?'🟢 Connected — blocking is live on all WiFi networks pointed at this profile':'🔴 Configured but not reachable — check API key/Profile ID';
+      st.style.color=d.connected?'var(--success)':'var(--danger)';
+    }else{
+      st.textContent='⚪ Not set up yet';
+      st.style.color='#78909c';
+    }
+    if(d.profile_id)sv('nd-profile',d.profile_id);
+  }catch(e){console.error(e);}
+}
+async function saveNextDNS(){
+  var apiKey=gv('nd-apikey').trim();var profileId=gv('nd-profile').trim();
+  if(!apiKey||!profileId)return msg('err','Enter both API Key and Profile ID');
+  msg('info','Connecting to NextDNS...');
+  var d=await api('/api/admin/network/nextdns','POST',{api_key:apiKey,profile_id:profileId});
+  if(d.success){msg('ok',d.message);sv('nd-apikey','');loadNextDNS();}else msg('err',d.message);
+}
+async function syncNextDNS(){
+  msg('info','Syncing block list to NextDNS...');
+  var d=await api('/api/admin/network/nextdns/sync','POST');
+  if(d.success){msg('ok',d.message);}else msg('err',d.message);
 }
 
 async function loadLogs(){

@@ -339,28 +339,47 @@ body{font-family:var(--font)}
         </table></div>
       </div>
 
-      <!-- Router Guide -->
+      <!-- Network-Wide Blocking (NextDNS) -->
       <div class="card">
-        <h3 class="card-title">📋 Block Sites on ALL Employee Phones (Router Setup)</h3>
+        <h3 class="card-title">🌐 Network-Wide Blocking — Both WiFi Networks</h3>
+        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">
+          "Apply Blocking on This PC" above only blocks websites on this one computer. To block the
+          sites in your list above on <strong>every phone and laptop on both of your spa WiFi networks</strong>,
+          connect a free <strong>NextDNS</strong> filtering profile. Domains you Add/Remove above are synced
+          to it automatically, so this list stays the single place you manage blocking from.
+        </p>
+
         <div style="background:var(--secondary);border-radius:10px;padding:1.2rem;margin-bottom:1rem">
-          <p style="font-weight:600;color:var(--dark);margin-bottom:.8rem">To block websites on ALL phones connected to spa WiFi:</p>
+          <p style="font-weight:600;color:var(--dark);margin-bottom:.8rem">One-time setup:</p>
           <ol style="font-size:.88rem;color:var(--text);padding-left:1.5rem;line-height:2">
-            <li>Open browser → go to <strong id="router-link">your router IP</strong></li>
-            <li>Login with router admin credentials (usually on sticker on router)</li>
-            <li>Find <strong>DNS Settings</strong> or <strong>DHCP Settings</strong></li>
-            <li>Set Primary DNS to: <strong id="dns-ip" style="color:var(--primary)">—</strong> (this computer)</li>
-            <li>Set Secondary DNS to: <strong>208.67.220.220</strong></li>
-            <li>Save and reboot router</li>
-            <li>✅ All phones on WiFi will now be blocked from the sites in your list above</li>
+            <li>Create a free account at <strong>nextdns.io</strong> and create one profile (e.g. "MySpa")</li>
+            <li>In the profile's <strong>Setup</strong> tab, copy the <strong>Profile ID</strong> (looks like <code>abc123</code>)</li>
+            <li>In your NextDNS account page, create an <strong>API Key</strong> and copy it</li>
+            <li>Paste both below and click Connect</li>
+            <li>On <strong>each router</strong> (both WiFi networks), open the router's admin page → DNS/WAN
+                settings → set the DNS server(s) to the addresses NextDNS's Setup tab gives for your
+                profile (or configure each router for DNS-over-HTTPS if it supports it) → save/reboot</li>
+            <li>✅ Every device that joins either WiFi now uses NextDNS, so your block list applies to both networks automatically</li>
           </ol>
         </div>
+
+        <div class="form-row" style="margin-bottom:.8rem">
+          <div class="form-group"><label>NextDNS API Key</label><input type="password" id="nd-apikey" placeholder="paste API key"></div>
+          <div class="form-group"><label>NextDNS Profile ID</label><input type="text" id="nd-profile" placeholder="e.g. abc123"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+          <button class="btn btn-primary" onclick="saveNextDNS()">🔗 Connect</button>
+          <button class="btn btn-outline" onclick="syncNextDNS()">🔄 Sync Block List Now</button>
+          <span id="nd-status" style="font-size:.85rem;color:#78909c">⚪ Not set up yet</span>
+        </div>
+
         <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;font-size:.85rem;color:#856404">
           <strong>⚠️ Notes:</strong>
           <ul style="padding-left:1.5rem;margin-top:.4rem;line-height:1.8">
-            <li><strong>This PC must stay ON</strong> for the DNS blocking to work on other devices</li>
+            <li>This only requires each router's DNS to be set once — nothing needs to stay running on any PC</li>
+            <li>Repeat the router step for <strong>both</strong> of your spa's WiFi networks/routers</li>
             <li>Employees can bypass by switching to mobile data (4G/5G) — that's on their own bill</li>
-            <li>"Apply Blocking on This PC" only blocks on THIS computer, not employee phones</li>
-            <li>Router DNS change blocks ALL devices on that WiFi network</li>
+            <li>Your API key and Profile ID are stored in ShiftGuard's database, separate from all other data</li>
           </ul>
         </div>
       </div>
