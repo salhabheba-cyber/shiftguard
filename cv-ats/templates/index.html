@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="grid-2">
+  <section class="card">
+    <h1>Jobs</h1>
+    {% if jobs %}
+      <table class="table">
+        <thead><tr><th>Job</th><th>CVs</th><th>Analysed</th><th>Top score</th><th>Created</th></tr></thead>
+        <tbody>
+        {% for j in jobs %}
+          <tr class="clickable" onclick="location.href='{{ url_for('job', job_id=j.id) }}'">
+            <td><a href="{{ url_for('job', job_id=j.id) }}"><strong>{{ j.title }}</strong></a></td>
+            <td>{{ j.total }}</td>
+            <td>{{ j.done or 0 }}{% if j.queued %} <span class="muted">(+{{ j.queued }} in queue)</span>{% endif %}</td>
+            <td>{% if j.top_score is not none %}<span class="score s{{ (j.top_score // 20) * 20 }}">{{ j.top_score }}</span>{% else %}—{% endif %}</td>
+            <td class="muted">{{ j.created_at[:10] }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No jobs yet. Create your first job opening on the right, then upload CVs to it.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>New job</h2>
+    <form method="post" action="{{ url_for('create_job') }}">
+      <label>Job title <input name="title" required placeholder="e.g. Senior Accountant"></label>
+      <label>Job description
+        <textarea name="description" rows="7" placeholder="Paste the job ad / responsibilities here"></textarea>
+      </label>
+      <label>What I want (rating criteria)
+        <textarea name="criteria" rows="7" placeholder="e.g.&#10;- Must have 5+ years in accounting&#10;- CPA or ACCA required&#10;- Fluent English and Arabic&#10;- Experience with SAP is a big plus&#10;- Prefer candidates living in Dubai"></textarea>
+      </label>
+      <button class="btn primary">Create job</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

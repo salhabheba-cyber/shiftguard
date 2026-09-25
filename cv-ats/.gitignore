@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+# Uploaded CVs and the database — personal data, never commit
+data/

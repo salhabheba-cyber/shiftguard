@@ -2,6 +2,8 @@
 
 Attendance Management System with PIN + Camera Photo, Salary Calculator, Network Security, and Website Blocking.
 
+> **Also in this repo:** [`cv-ats/`](cv-ats/) is an AI CV screener (applicant tracking system). It extracts candidate details from CVs, rates each candidate against your job criteria, and exports everything to Excel. See [cv-ats/README.md](cv-ats/README.md).
+
 ## Features
 
 - **PIN + Camera Photo Check-in/out** - Employees take a photo when checking in/out

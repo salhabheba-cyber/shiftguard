@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}{{ job.title }} · CV Screener{% endblock %}
+{% block content %}
+{% set busy = candidates | selectattr('status', 'in', ['pending', 'processing']) | list | length %}
+{% set failed = candidates | selectattr('status', 'equalto', 'error') | list | length %}
+
+<div class="page-head">
+  <div>
+    <a class="muted" href="{{ url_for('index') }}">← All jobs</a>
+    <h1>{{ job.title }}</h1>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('export_job', job_id=job.id) }}">Download Excel</a>
+    {% if failed %}
+      <form method="post" action="{{ url_for('retry_failed', job_id=job.id) }}"><button class="btn">Retry failed ({{ failed }})</button></form>
+    {% endif %}
+    {% if candidates %}
+      <form method="post" action="{{ url_for('rerate', job_id=job.id) }}"
+            onsubmit="return confirm('Re-rate all {{ candidates|length }} CVs? This calls the AI again for each one.')">
+        <button class="btn">Re-rate all</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<section class="card">
+  <form id="upload-form" method="post" action="{{ url_for('upload', job_id=job.id) }}" enctype="multipart/form-data">
+    <label class="dropzone" id="dropzone">
+      <input type="file" name="files" id="files" multiple accept="{{ accept }}">
+      <strong>Drop CVs here or click to choose</strong>
+      <span class="muted">PDF, Word (.docx/.doc), TXT, RTF or images — you can select many at once</span>
+      <span id="file-count"></span>
+    </label>
+    <button class="btn primary" id="upload-btn" disabled>Upload &amp; analyse</button>
+  </form>
+  {% if busy %}
+    <p class="progress" id="progress">⏳ Analysing {{ busy }} CV(s)… this page refreshes automatically.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="page-head">
+    <h2>Candidates ({{ candidates|length }})</h2>
+    <input type="search" id="filter" placeholder="Filter by name, skill, title…">
+  </div>
+  {% if candidates %}
+  <div class="table-wrap">
+  <table class="table" id="cand-table">
+    <thead><tr><th>#</th><th>Score</th><th>Candidate</th><th>Current title</th><th>Contact</th><th>Summary</th><th></th></tr></thead>
+    <tbody>
+    {% set rank = namespace(n=0) %}
+    {% for c in candidates %}
+      {% set d = c.data %}
+      <tr data-search="{{ (c.name or '') ~ ' ' ~ (d.current_title or '') ~ ' ' ~ (d.skills or [])|join(' ') ~ ' ' ~ (d.location or '') ~ ' ' ~ c.filename }}">
+        {% if c.status == 'done' %}
+          {% set rank.n = rank.n + 1 %}
+          <td>{{ rank.n }}</td>
+          <td><span class="score s{{ (c.score // 20) * 20 }}">{{ c.score }}</span><div class="rec">{{ c.recommendation }}</div></td>
+          <td><a href="{{ url_for('candidate', cid=c.id) }}"><strong>{{ c.name or '(no name)' }}</strong></a>
+              <div class="muted small">{{ d.location }}{% if d.total_years_experience is not none %} · {{ d.total_years_experience|round(1) }} yrs{% endif %}</div></td>
+          <td>{{ d.current_title }}</td>
+          <td class="small">{{ c.email }}<br>{{ c.phone }}</td>
+          <td class="small summary">{{ d.summary }}</td>
+        {% else %}
+          <td>—</td>
+          <td><span class="badge {{ c.status }}">{{ c.status }}</span></td>
+          <td><a href="{{ url_for('candidate', cid=c.id) }}">{{ c.filename }}</a></td>
+          <td colspan="3" class="small {{ 'error-text' if c.status == 'error' }}">{{ c.error or 'Waiting for analysis…' }}</td>
+        {% endif %}
+        <td class="nowrap"><a class="small" href="{{ url_for('candidate_file', cid=c.id) }}" target="_blank">CV ↗</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    <p class="muted">No CVs uploaded yet.</p>
+  {% endif %}
+</section>
+
+<details class="card">
+  <summary><h2 class="inline">Job details &amp; rating criteria</h2></summary>
+  <form method="post" action="{{ url_for('edit_job', job_id=job.id) }}">
+    <label>Job title <input name="title" value="{{ job.title }}" required></label>
+    <label>Job description <textarea name="description" rows="8">{{ job.description }}</textarea></label>
+    <label>What I want (rating criteria) <textarea name="criteria" rows="8">{{ job.criteria }}</textarea></label>
+    <label class="check"><input type="checkbox" name="rerate" value="1"> Re-rate all existing candidates with the new criteria</label>
+    <button class="btn primary">Save</button>
+  </form>
+  <form method="post" action="{{ url_for('delete_job', job_id=job.id) }}" class="danger-zone"
+        onsubmit="return confirm('Delete this job and ALL its candidates and CV files?')">
+    <button class="btn danger">Delete job</button>
+  </form>
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const input = document.getElementById('files');
+  const btn = document.getElementById('upload-btn');
+  const count = document.getElementById('file-count');
+  const zone = document.getElementById('dropzone');
+  function update() {
+    const n = input.files.length;
+    btn.disabled = n === 0;
+    count.textContent = n ? `${n} file(s) selected` : '';
+  }
+  input.addEventListener('change', update);
+  ['dragenter', 'dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('over'); }));
+  zone.addEventListener('drop', ev => { input.files = ev.dataTransfer.files; update(); });
+  document.getElementById('upload-form').addEventListener('submit', () => { btn.disabled = true; btn.textContent = 'Uploading…'; });
+
+  const filter = document.getElementById('filter');
+  if (filter) filter.addEventListener('input', () => {
+    const q = filter.value.toLowerCase();
+    document.querySelectorAll('#cand-table tbody tr').forEach(tr => {
+      tr.style.display = tr.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  {% if busy %}
+  // Poll until the queue for this job is empty, then reload to show results.
+  let last = null;
+  setInterval(async () => {
+    try {
+      const s = await (await fetch('{{ url_for('job_status', job_id=job.id) }}')).json();
+      const key = JSON.stringify(s);
+      if (last !== null && key !== last) location.reload();
+      last = key;
+    } catch (e) {}
+  }, 4000);
+  {% endif %}
+</script>
+{% endblock %}
