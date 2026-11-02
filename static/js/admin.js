@@ -122,17 +122,19 @@ async function delPhoto(id,field){
 }
 
 async function loadEmployees(){
-  var d=await api('/api/admin/employees'+(gBranch?'?branch_id='+gBranch:''));
+  var sf=document.getElementById('emp-show-former');var former=sf&&sf.checked;
+  var qs=[];if(gBranch)qs.push('branch_id='+gBranch);if(former)qs.push('include_former=1');
+  var d=await api('/api/admin/employees'+(qs.length?'?'+qs.join('&'):''));
   allEmployees=d.employees||[];
   var tb=document.getElementById('emp-tbody');
-  if(!allEmployees.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">No employees yet.</td></tr>';return;}
-  tb.innerHTML=allEmployees.map(function(e){return'<tr><td><strong>'+e.name+'</strong></td><td>'+(e.position||'—')+'</td><td>'+(e.branch_name||'—')+'</td><td>'+(e.phone||'—')+'</td><td>'+e.shift_start+'–'+e.shift_end+'</td><td style="font-size:.78rem">'+(e.working_days||'').replace(/,/g,' ')+'</td><td>'+(e.salary_amount?'$'+parseFloat(e.salary_amount).toLocaleString():'—')+'</td><td style="display:flex;gap:.3rem;flex-wrap:wrap"><button class="btn btn-warn btn-xs" onclick="editEmp('+e.id+')">✏️ Edit</button><button class="btn btn-primary btn-xs" onclick="openResetPin('+e.id+',\''+e.name+'\')">🔑 PIN</button><button class="btn btn-danger btn-xs" onclick="delEmp('+e.id+',\''+e.name+'\')">🗑 Delete</button></td></tr>';}).join('');
+  if(!allEmployees.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:#78909c">No employees yet.</td></tr>';return;}
+  tb.innerHTML=allEmployees.map(function(e){return'<tr'+(e.has_left?' style="opacity:.6"':'')+'><td><strong>'+e.name+'</strong>'+(e.has_left?' <span class="badge b-gray">Inactive</span>':'')+'</td><td>'+(e.position||'—')+'</td><td>'+(e.branch_name||'—')+'</td><td>'+(e.phone||'—')+'</td><td>'+e.shift_start+'–'+e.shift_end+'</td><td style="font-size:.78rem">'+(e.working_days||'').replace(/,/g,' ')+'</td><td>'+(e.salary_amount?'$'+parseFloat(e.salary_amount).toLocaleString():'—')+'</td><td>'+(e.hire_date||'—')+'</td><td>'+(e.end_date||'—')+'</td><td style="display:flex;gap:.3rem;flex-wrap:wrap"><button class="btn btn-warn btn-xs" onclick="editEmp('+e.id+')">✏️ Edit</button><button class="btn btn-primary btn-xs" onclick="openResetPin('+e.id+',\''+e.name+'\')">🔑 PIN</button><button class="btn btn-danger btn-xs" onclick="delEmp('+e.id+',\''+e.name+'\')">🗑 Delete</button></td></tr>';}).join('');
 }
 
 function openAddEmp(){
   document.getElementById('emp-modal-title').textContent='➕ Add Employee';
   document.getElementById('emp-id').value='';
-  ['e-name','e-pin','e-pos','e-phone','e-sal','e-hire'].forEach(function(id){sv(id,'');});
+  ['e-name','e-pin','e-pos','e-phone','e-sal','e-hire','e-end'].forEach(function(id){sv(id,'');});
   sv('e-ss','09:30');sv('e-se','18:30');sv('e-saltype','monthly');
   document.querySelectorAll('#wd-grid input').forEach(function(c){c.checked=c.value!=='Sun';});
   populateBranchSel('e-branch');openM('emp-modal');
@@ -141,7 +143,7 @@ function editEmp(id){
   var e=allEmployees.find(function(x){return x.id===id;});if(!e)return;
   document.getElementById('emp-modal-title').textContent='✏️ Edit Employee';
   sv('emp-id',e.id);sv('e-name',e.name);sv('e-pin','');sv('e-pos',e.position||'');sv('e-phone',e.phone||'');
-  sv('e-ss',e.shift_start);sv('e-se',e.shift_end);sv('e-saltype',e.salary_type||'monthly');sv('e-sal',e.salary_amount||'');sv('e-hire',e.hire_date||'');
+  sv('e-ss',e.shift_start);sv('e-se',e.shift_end);sv('e-saltype',e.salary_type||'monthly');sv('e-sal',e.salary_amount||'');sv('e-hire',e.hire_date||'');sv('e-end',e.end_date||'');
   var wd=(e.working_days||'Mon,Tue,Wed,Thu,Fri,Sat').split(',');
   document.querySelectorAll('#wd-grid input').forEach(function(c){c.checked=wd.includes(c.value);});
   populateBranchSel('e-branch',e.branch_id);openM('emp-modal');
@@ -152,10 +154,11 @@ async function saveEmp(){
   if(!id&&!pin)return msg('err','PIN required for new employees');
   if(pin&&(pin.length!==4||!/^\d+$/.test(pin)))return msg('err','PIN must be 4 digits');
   var wd=Array.from(document.querySelectorAll('#wd-grid input:checked')).map(function(c){return c.value;}).join(',');
-  var payload={name:name,position:gv('e-pos'),phone:gv('e-phone'),branch_id:parseInt(gv('e-branch'))||1,shift_start:gv('e-ss'),shift_end:gv('e-se'),working_days:wd,salary_type:gv('e-saltype'),salary_amount:parseFloat(gv('e-sal'))||0,hire_date:gv('e-hire')||null};
+  var payload={name:name,position:gv('e-pos'),phone:gv('e-phone'),branch_id:parseInt(gv('e-branch'))||1,shift_start:gv('e-ss'),shift_end:gv('e-se'),working_days:wd,salary_type:gv('e-saltype'),salary_amount:parseFloat(gv('e-sal'))||0,hire_date:gv('e-hire')||null,end_date:gv('e-end')||null};
+  if(payload.hire_date&&payload.end_date&&payload.end_date<payload.hire_date)return msg('err','End date cannot be before the start date');
   if(pin)payload.pin=pin;
   var d=await api(id?'/api/admin/employees/'+id:'/api/admin/employees',id?'PUT':'POST',payload);
-  if(d.success){msg('ok',d.message);closeM('emp-modal');loadEmployees();}else msg('err',d.message);
+  if(d.success){msg('ok',d.message);closeM('emp-modal');loadEmployees();loadDashboard();}else msg('err',d.message);
 }
 async function delEmp(id,name){
   if(!confirm('⚠️ PERMANENTLY delete "'+name+'"?\n\nThis removes ALL their attendance records and salary history.\n\nThis CANNOT be undone.'))return;
@@ -184,7 +187,7 @@ function populateBranchSel(selId,selectedId){
 }
 function populateEmpSel(selId){
   var s=document.getElementById(selId);if(!s)return;
-  s.innerHTML=allEmployees.map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
+  s.innerHTML=allEmployees.filter(function(e){return !e.has_left;}).map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
 }
 function openAddBranch(){document.getElementById('branch-modal-title').textContent='🏢 Add Branch';sv('br-id','');['br-name','br-addr','br-phone'].forEach(function(id){sv(id,'');});openM('branch-modal');}
 function editBranch(id){var b=allBranches.find(function(x){return x.id===id;});if(!b)return;document.getElementById('branch-modal-title').textContent='✏️ Edit Branch';sv('br-id',b.id);sv('br-name',b.name);sv('br-addr',b.address||'');sv('br-phone',b.phone||'');openM('branch-modal');}
@@ -284,7 +287,7 @@ async function delLeaveType(id,name){
 // ── LEAVE RECORDS ─────────────────────────────────────────────────────────────
 function populateLeaveEmpSel(){
   var s=document.getElementById('lv-emp');if(!s)return;
-  s.innerHTML=allEmployees.map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
+  s.innerHTML=allEmployees.filter(function(e){return !e.has_left;}).map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
 }
 function populateLeaveTypeSel(selectedId){
   var s=document.getElementById('lv-type');if(!s)return;

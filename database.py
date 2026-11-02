@@ -195,6 +195,9 @@ def init_db():
         ('check_in_ip',  'TEXT'),
         ('check_out_ip', 'TEXT'),
     ])
+    _ensure_columns('employees', [
+        ('end_date', 'DATE'),   # last working day; blank = still employed
+    ])
 
 def _table_columns(table):
     return {r['name'] for r in q(f'PRAGMA table_info({table})')}
@@ -256,10 +259,28 @@ def delete_branch(bid):
     run('UPDATE branches SET is_active=0 WHERE id=?', (bid,))
 
 # ── EMPLOYEES ──────────────────────────────────────────────────────────────────
-def get_employees(active_only=True, branch_id=None):
+# An employee whose end date has passed has left: they are hidden from the
+# kiosk and admin lists, but all their attendance/salary/leave data is kept.
+_NOT_LEFT = "(e.end_date IS NULL OR e.end_date='' OR e.end_date>=?)"
+_STARTED  = "(e.hire_date IS NULL OR e.hire_date='' OR e.hire_date<=?)"
+
+def get_employees(active_only=True, branch_id=None, include_former=False, period=None):
+    """List employees.
+
+    By default only current staff are returned (end date empty or not yet passed).
+    period=(start, end) returns everyone employed at any point in that date range
+    instead, so payroll/reports for a past month still include people who left later
+    or during that month. include_former=True returns everyone.
+    """
     conds, params = [], []
     if active_only: conds.append('e.is_active=1')
     if branch_id:   conds.append('e.branch_id=?'); params.append(branch_id)
+    if not include_former:
+        if period:
+            conds.append(_NOT_LEFT); params.append(period[0])
+            conds.append(_STARTED);  params.append(period[1])
+        else:
+            conds.append(_NOT_LEFT); params.append(date.today().isoformat())
     where = ('WHERE ' + ' AND '.join(conds)) if conds else ''
     return q(f'''SELECT e.*,b.name as branch_name
                  FROM employees e LEFT JOIN branches b ON e.branch_id=b.id
@@ -272,26 +293,27 @@ def get_employee(eid):
     return r[0] if r else None
 
 def search_employees(fragment, branch_id=None):
+    today = date.today().isoformat()
     if branch_id:
-        return q('SELECT * FROM employees WHERE name LIKE ? AND is_active=1 AND branch_id=? ORDER BY name LIMIT 10',
-                 (f'%{fragment}%', branch_id))
-    return q('SELECT * FROM employees WHERE name LIKE ? AND is_active=1 ORDER BY name LIMIT 10',
-             (f'%{fragment}%',))
+        return q(f'SELECT * FROM employees e WHERE name LIKE ? AND is_active=1 AND {_NOT_LEFT} AND branch_id=? ORDER BY name LIMIT 10',
+                 (f'%{fragment}%', today, branch_id))
+    return q(f'SELECT * FROM employees e WHERE name LIKE ? AND is_active=1 AND {_NOT_LEFT} ORDER BY name LIMIT 10',
+             (f'%{fragment}%', today))
 
 def add_employee(name, pin, position=None, phone=None, branch_id=1,
                  shift_start='09:30', shift_end='18:30',
                  working_days='Mon,Tue,Wed,Thu,Fri,Sat',
-                 salary_type='monthly', salary_amount=0, hire_date=None):
+                 salary_type='monthly', salary_amount=0, hire_date=None, end_date=None):
     return run('''INSERT INTO employees
         (name,pin_hash,position,phone,branch_id,shift_start,shift_end,
-         working_days,salary_type,salary_amount,hire_date)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+         working_days,salary_type,salary_amount,hire_date,end_date)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
         (name, hash_pin(pin), position, phone, branch_id,
-         shift_start, shift_end, working_days, salary_type, salary_amount, hire_date))
+         shift_start, shift_end, working_days, salary_type, salary_amount, hire_date, end_date))
 
 def update_employee(eid, **kw):
     allowed = ['name','position','phone','branch_id','shift_start','shift_end',
-               'working_days','salary_type','salary_amount','hire_date','is_active']
+               'working_days','salary_type','salary_amount','hire_date','end_date','is_active']
     sets, vals = [], []
     for k, v in kw.items():
         if k == 'pin': sets.append('pin_hash=?'); vals.append(hash_pin(v))
@@ -310,7 +332,8 @@ def reset_pin(eid, new_pin):
     run('UPDATE employees SET pin_hash=? WHERE id=?', (hash_pin(new_pin), eid))
 
 def verify_employee_pin(eid, pin):
-    r = q('SELECT pin_hash FROM employees WHERE id=? AND is_active=1', (eid,))
+    r = q(f'SELECT pin_hash FROM employees e WHERE id=? AND is_active=1 AND {_NOT_LEFT}',
+          (eid, date.today().isoformat()))
     return bool(r and check_pin(r[0]['pin_hash'], pin))
 
 # ── ATTENDANCE ─────────────────────────────────────────────────────────────────
@@ -685,8 +708,10 @@ def get_monthly_notes(year, month):
                 WHERE n.year=? AND n.month=? ORDER BY e.name''', (year, month))
 
 def get_employees_with_notes(year, month, branch_id=None):
-    """All active employees plus their note for the given month (blank if none)."""
-    emps  = get_employees(active_only=True, branch_id=branch_id)
+    """Employees employed during the given month plus their note (blank if none)."""
+    first = f'{year}-{int(month):02d}-01'
+    last  = f'{year}-{int(month):02d}-{calendar.monthrange(int(year), int(month))[1]}'
+    emps  = get_employees(active_only=True, branch_id=branch_id, period=(first, last))
     notes = {n['employee_id']: n['note'] for n in
              q('SELECT employee_id,note FROM monthly_notes WHERE year=? AND month=?', (year, month))}
     for e in emps: e['note'] = notes.get(e['id'], '') or ''

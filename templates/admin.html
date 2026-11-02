@@ -127,9 +127,12 @@ body{font-family:var(--font)}
             <button class="btn btn-primary" onclick="openAddEmp()">➕ Add Employee</button>
           </div>
         </div>
+        <label style="display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;margin:.25rem 0 .6rem;cursor:pointer">
+          <input type="checkbox" id="emp-show-former" onchange="loadEmployees()"> Show former employees (end date passed)
+        </label>
         <div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Actions</th></tr></thead>
-          <tbody id="emp-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Start Date</th><th>End Date</th><th>Actions</th></tr></thead>
+          <tbody id="emp-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -497,7 +500,10 @@ body{font-family:var(--font)}
     </div>
     <div class="form-group"><label>Salary Amount (USD)</label><input type="number" id="e-sal" placeholder="0" min="0"></div>
   </div>
-  <div class="form-group"><label>Hire Date</label><input type="date" id="e-hire"></div>
+  <div class="form-row">
+    <div class="form-group"><label>Start Date</label><input type="date" id="e-hire"></div>
+    <div class="form-group"><label>End Date <span style="font-weight:400;color:#78909c">(leave blank if still working)</span></label><input type="date" id="e-end"></div>
+  </div>
   <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
     <button class="btn btn-outline" onclick="closeM('emp-modal')">Cancel</button>
     <button class="btn btn-primary" onclick="saveEmp()">💾 Save</button>

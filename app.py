@@ -332,12 +332,26 @@ def api_del_photo(rid):
     return jsonify({'success':True})
 
 # ── EMPLOYEES ──────────────────────────────────────────────────────────────────
+def _check_dates(start, end):
+    """Validate optional YYYY-MM-DD start/end dates. Returns an error message or None."""
+    for v in (start, end):
+        if v:
+            try: datetime.strptime(v, '%Y-%m-%d')
+            except (TypeError, ValueError): return 'Dates must be in YYYY-MM-DD format'
+    if start and end and end < start:
+        return 'End date cannot be before the start date'
+    return None
+
 @app.route('/api/admin/employees', methods=['GET'])
 @api_login_required
 def api_employees():
     bid  = request.args.get('branch_id', type=int)
-    emps = database.get_employees(active_only=True, branch_id=bid)
-    for e in emps: e.pop('pin_hash', None)
+    include_former = request.args.get('include_former') in ('1', 'true')
+    emps = database.get_employees(active_only=True, branch_id=bid, include_former=include_former)
+    today = date.today().isoformat()
+    for e in emps:
+        e.pop('pin_hash', None)
+        e['has_left'] = bool(e.get('end_date')) and e['end_date'] < today
     return jsonify({'employees': emps})
 
 @app.route('/api/admin/employees', methods=['POST'])
@@ -347,6 +361,8 @@ def api_add_emp():
     name = (d.get('name') or '').strip()
     pin  = str(d.get('pin','')).strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
+    err = _check_dates(d.get('hire_date'), d.get('end_date'))
+    if err: return jsonify({'success':False,'message':err}), 400
     if not pin or len(pin)!=4 or not pin.isdigit():
         return jsonify({'success':False,'message':'PIN must be exactly 4 digits'}), 400
     try:
@@ -358,7 +374,8 @@ def api_add_emp():
             working_days=d.get('working_days','Mon,Tue,Wed,Thu,Fri,Sat'),
             salary_type=d.get('salary_type','monthly'),
             salary_amount=float(d.get('salary_amount') or 0),
-            hire_date=d.get('hire_date') or None)
+            hire_date=d.get('hire_date') or None,
+            end_date=d.get('end_date') or None)
         return jsonify({'success':True,'message':f'{name} added!','id':eid})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
@@ -369,8 +386,13 @@ def api_upd_emp(eid):
     d  = request.json or {}
     kw = {}
     for f in ['name','position','phone','branch_id','shift_start','shift_end',
-              'working_days','salary_type','salary_amount','hire_date','is_active']:
+              'working_days','salary_type','salary_amount','hire_date','end_date','is_active']:
         if f in d: kw[f] = d[f]
+    for f in ('hire_date', 'end_date'):
+        if f in kw: kw[f] = kw[f] or None
+    cur = database.get_employee(eid) or {}
+    err = _check_dates(kw.get('hire_date', cur.get('hire_date')), kw.get('end_date', cur.get('end_date')))
+    if err: return jsonify({'success':False,'message':err}), 400
     if 'pin' in d and d['pin']:
         pin = str(d['pin']).strip()
         if len(pin)!=4 or not pin.isdigit():
@@ -432,7 +454,10 @@ def api_calc():
     year  = int(d.get('year',  date.today().year))
     month = int(d.get('month', date.today().month))
     eid   = d.get('employee_id')
-    emps  = [database.get_employee(int(eid))] if eid else database.get_employees()
+    first = f'{year}-{month:02d}-01'
+    last  = f'{year}-{month:02d}-{calendar.monthrange(year, month)[1]}'
+    emps  = ([database.get_employee(int(eid))] if eid
+             else database.get_employees(period=(first, last)))
     recs  = []
     for e in emps:
         if not e: continue
@@ -746,7 +771,7 @@ def _daily_sections(day, branch_id=None):
 def _monthly_sections(year, month, branch_id=None):
     first = f'{year}-{month:02d}-01'
     last  = f'{year}-{month:02d}-{calendar.monthrange(year,month)[1]}'
-    emps  = database.get_employees(active_only=True, branch_id=branch_id)
+    emps  = database.get_employees(active_only=True, branch_id=branch_id, period=(first, last))
     logs  = database.get_attendance_range(first, last, branch_id=branch_id)
     leave = database.get_leave_records(first, last, None)
     if branch_id:
@@ -841,10 +866,11 @@ def _export_data(section):
     if section == 'employees':
         emps = database.get_employees(active_only=True, branch_id=bid)
         headers = ['Name','Position','Branch','Phone','Shift Start','Shift End',
-                   'Working Days','Salary Type','Salary Amount','Hire Date']
+                   'Working Days','Salary Type','Salary Amount','Start Date','End Date']
         rows = [[e['name'], e['position'] or '', e.get('branch_name',''), e['phone'] or '',
                  e['shift_start'], e['shift_end'], (e['working_days'] or '').replace(',', ' '),
-                 (e['salary_type'] or 'monthly').title(), e['salary_amount'], e['hire_date'] or ''] for e in emps]
+                 (e['salary_type'] or 'monthly').title(), e['salary_amount'], e['hire_date'] or '',
+                 e.get('end_date') or ''] for e in emps]
         return 'Employee List', headers, rows, 'ShiftGuard_Employees'
 
     if section == 'salary':
