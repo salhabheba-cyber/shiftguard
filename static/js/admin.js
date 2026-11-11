@@ -498,23 +498,27 @@ async function changePw(){
   if(nw!==cfm)return msg('err','Passwords do not match');
   if(nw.length<8)return msg('err','Minimum 8 characters');
   var d=await api('/api/admin/change-password','POST',{current_password:cur,new_password:nw});
-  if(d.success){msg('ok',d.message);setTimeout(function(){location.href='/admin/login';},2000);}else msg('err',d.message);
+  if(d.success){msg('ok',d.message);setTimeout(function(){location.href='/?signin=1';},2000);}else msg('err',d.message);
 }
 async function loadAdmins(){
-  var d=await api('/api/admin/users');var tb=document.getElementById('admin-tbody');if(!tb)return;
-  tb.innerHTML=(d.users||[]).map(function(u){return'<tr><td><strong>'+u.username+'</strong></td><td>'+u.role+'</td><td>'+(u.branch_id?u.branch_id:'All')+'</td><td style="font-size:.78rem">'+(u.last_login?(u.last_login+'').substring(0,16):'Never')+'</td><td><span class="badge '+(u.is_active?'b-green':'b-red')+'">'+(u.is_active?'Active':'Inactive')+'</span></td></tr>';}).join('');
+  var d=await api('/api/admin/users');var me=(d.users||[]).find(function(u){return u.username===CURRENT_USER;});var ae=document.getElementById('acct-email');if(ae&&me&&document.activeElement!==ae)ae.value=me.email||'';var tb=document.getElementById('admin-tbody');if(!tb)return;
+  tb.innerHTML=(d.users||[]).map(function(u){return'<tr><td><strong>'+u.username+'</strong></td><td>'+(u.email||'<span style="color:#8C7B6A">—</span>')+'</td><td>'+u.role+'</td><td>'+(u.branch_id?u.branch_id:'All')+'</td><td style="font-size:.78rem">'+(u.last_login?(u.last_login+'').substring(0,16):'Never')+'</td><td><span class="badge '+(u.is_active?'b-green':'b-red')+'">'+(u.is_active?'Active':'Inactive')+'</span></td></tr>';}).join('');
 }
 function openAddAdmin(){
-  sv('adm-u','');sv('adm-pw','');sv('adm-role','admin');
+  sv('adm-u','');sv('adm-email','');sv('adm-pw','');sv('adm-role','admin');
   var s=document.getElementById('adm-branch');
   s.innerHTML='<option value="">All Branches</option>'+allBranches.filter(function(b){return b.is_active;}).map(function(b){return'<option value="'+b.id+'">'+b.name+'</option>';}).join('');
   openM('admin-modal');
 }
 async function saveAdmin(){
-  var d=await api('/api/admin/users','POST',{username:gv('adm-u').trim(),password:gv('adm-pw'),role:gv('adm-role'),branch_id:gv('adm-branch')||null});
+  var d=await api('/api/admin/users','POST',{username:gv('adm-u').trim(),email:gv('adm-email').trim()||null,password:gv('adm-pw'),role:gv('adm-role'),branch_id:gv('adm-branch')||null});
   if(d.success){msg('ok','Admin created');closeM('admin-modal');loadAdmins();}else msg('err',d.message);
+}
+async function saveAccountEmail(){
+  var d=await api('/api/admin/account-email','POST',{email:gv('acct-email').trim()});
+  if(d.success){msg('ok',d.message);loadAdmins();}else msg('err',d.message);
 }
 async function doLogout(){
   if(!confirm('Logout?'))return;
-  await api('/admin/logout','POST');location.href='/admin/login';
+  await api('/admin/logout','POST');location.href='/';
 }

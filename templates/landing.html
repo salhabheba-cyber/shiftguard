@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ theme.logo_text }}</title>
+<meta name="description" content="ShiftGuard — attendance and security for your team.">
+<meta name="theme-color" content="#1E1915">
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#{{ theme.primary }};--accent:#{{ theme.accent }};--dark:#{{ theme.dark }};
+  --serif:'Cormorant Garamond','Playfair Display',Georgia,'Times New Roman',serif;
+  --sans:'{{ theme.font }}','Segoe UI',Tahoma,sans-serif;
+  --gold:linear-gradient(135deg,#F3D3A6 0%,var(--accent) 45%,color-mix(in srgb,var(--primary) 80%,#000) 100%);
+  --rx:8deg;--ry:0deg;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);color:#3A2F27;overflow:hidden;
+  background:
+    radial-gradient(1100px 700px at 50% 120%,rgba(120,90,60,.45),transparent 60%),
+    radial-gradient(900px 600px at 50% -20%,rgba(255,250,240,.9),transparent 60%),
+    linear-gradient(170deg,#EDE3D6 0%,#DCCDBA 55%,#C7B39B 100%)}
+/* fine stone grain */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .27 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* light flare */
+.flare{position:fixed;top:16%;right:24%;width:14px;height:14px;border-radius:50%;background:#fff;pointer-events:none;
+  box-shadow:0 0 30px 12px rgba(255,244,225,.95),0 0 120px 60px rgba(255,228,190,.55),0 0 320px 160px rgba(255,220,170,.25);
+  animation:flare 6s ease-in-out infinite}
+.flare::before,.flare::after{content:"";position:absolute;left:50%;top:50%;width:420px;height:2px;transform:translate(-50%,-50%);
+  background:linear-gradient(90deg,transparent,rgba(255,240,215,.75),transparent)}
+.flare::after{transform:translate(-50%,-50%) rotate(90deg);width:200px;opacity:.6}
+@keyframes flare{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.25)}}
+
+/* ── 3D NAME ─────────────────────────────────────────────────────────────── */
+.stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;perspective:1100px}
+.float{animation:float 7s ease-in-out infinite;transform-style:preserve-3d}
+@keyframes float{0%,100%{transform:translateY(-10px)}50%{transform:translateY(12px)}}
+.word{position:relative;transform-style:preserve-3d;
+  transform:rotateX(var(--rx)) rotateY(var(--ry));transition:transform .5s cubic-bezier(.2,.7,.2,1);
+  font-family:var(--serif);font-weight:700;font-size:clamp(3.2rem,18vw,11rem);letter-spacing:.01em;line-height:1;white-space:nowrap}
+.sway{transform-style:preserve-3d;animation:sway 14s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotateY(-16deg) rotateX(4deg)}50%{transform:rotateY(16deg) rotateX(-2deg)}}
+.layer{position:absolute;inset:0;color:var(--c);user-select:none}
+.face{position:relative;display:block;background:var(--gold);background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shine 6s linear infinite;filter:drop-shadow(0 1px 0 rgba(255,240,220,.6))}
+@keyframes shine{0%{background-position:120% 0}100%{background-position:-120% 0}}
+.face .s{background:linear-gradient(180deg,#3A2C22,#1E1915);-webkit-background-clip:text;background-clip:text}
+/* soft floor shadow under the floating name */
+.shadow{position:absolute;left:50%;top:50%;width:min(70vw,820px);height:min(7vw,70px);margin-top:min(13vw,150px);
+  transform:translateX(-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(50,30,14,.42),rgba(50,30,14,.12) 60%,transparent);filter:blur(8px);
+  animation:shadow 7s ease-in-out infinite}
+@keyframes shadow{0%,100%{opacity:.95;transform:translateX(-50%) scale(1)}50%{opacity:.6;transform:translateX(-50%) scale(.86)}}
+
+/* ── FLOATING ACCOUNT BUTTON ─────────────────────────────────────────────── */
+.acct{position:fixed;top:22px;right:22px;z-index:20;display:flex;align-items:center;gap:.6rem;
+  padding:.7rem 1.2rem .7rem .75rem;border-radius:999px;cursor:pointer;font:600 .95rem var(--sans);color:#2A231E;letter-spacing:.3px;
+  background:rgba(255,255,255,.42);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+  border:1px solid rgba(255,255,255,.7);box-shadow:0 18px 36px -16px rgba(60,40,20,.55),inset 0 1px 0 rgba(255,255,255,.8);
+  animation:bob 4.5s ease-in-out infinite;transition:box-shadow .25s,background .25s}
+.acct:hover{background:rgba(255,255,255,.62);box-shadow:0 22px 44px -16px rgba(60,40,20,.65),inset 0 1px 0 #fff}
+.acct:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+.acct .ico{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,#3A322C,#16120F);
+  border:1px solid color-mix(in srgb,var(--accent) 70%,transparent);box-shadow:0 4px 10px rgba(0,0,0,.3)}
+.acct .ico svg{width:18px;height:18px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* ── SIGN-IN PANEL ───────────────────────────────────────────────────────── */
+.veil{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(30,25,21,.32);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  opacity:0;pointer-events:none;transition:opacity .3s}
+.veil.open{opacity:1;pointer-events:auto}
+.panel{position:relative;width:100%;max-width:400px;padding:2.4rem 2.2rem 2rem;border-radius:26px;text-align:center;
+  background:rgba(255,255,255,.55);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid rgba(255,255,255,.75);box-shadow:0 40px 90px -30px rgba(40,25,12,.7),inset 0 1px 0 rgba(255,255,255,.9);
+  transform:translateY(24px) scale(.96) rotateX(8deg);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.veil.open .panel{transform:none}
+.x{position:absolute;top:14px;right:16px;width:34px;height:34px;border:none;border-radius:50%;background:rgba(255,255,255,.5);
+  color:#6B5A4B;font-size:1.3rem;cursor:pointer;line-height:1}
+.x:hover{background:#fff}
+.panel h2{font-family:var(--serif);font-size:2rem;font-weight:700;color:#1E1915}
+.panel h2 span{background:var(--gold);-webkit-background-clip:text;background-clip:text;color:transparent}
+.panel .sub{color:#8C7B6A;font-size:.7rem;letter-spacing:3px;text-transform:uppercase;margin:.35rem 0 1.6rem}
+.fg{text-align:left;margin-bottom:1rem}
+.fg label{display:block;font-size:.82rem;font-weight:600;margin-bottom:.35rem}
+.fg input{width:100%;padding:.85rem .95rem;border-radius:12px;border:1px solid color-mix(in srgb,var(--primary) 25%,#fff);
+  background:rgba(255,255,255,.78);font-size:.98rem;color:#3A2F27;outline:none;transition:.2s}
+.fg input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 22%,transparent)}
+.go{width:100%;margin-top:.35rem;padding:.95rem;border:none;border-radius:12px;cursor:pointer;background:var(--gold);color:#1E1915;
+  font:700 1rem var(--sans);letter-spacing:1px;box-shadow:0 14px 26px -12px color-mix(in srgb,var(--primary) 90%,transparent);transition:.2s}
+.go:hover{transform:translateY(-1px);filter:brightness(1.05)}
+.go:disabled{opacity:.6;cursor:wait;transform:none}
+.err{display:none;margin-bottom:1rem;padding:.75rem;border-radius:10px;background:#F3DAD3;border:1px solid #E8C2B7;color:#7E2E20;font-size:.87rem}
+.err.show{display:block}
+/* choice */
+.choices{display:grid;gap:.85rem;margin-top:.2rem}
+.choice{display:flex;align-items:center;gap:1rem;padding:1.05rem 1.1rem;border-radius:16px;text-decoration:none;text-align:left;color:#2A231E;
+  background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.85);box-shadow:0 12px 26px -16px rgba(60,40,20,.6);transition:.25s}
+.choice:hover{transform:translateY(-3px);background:#fff;box-shadow:0 18px 34px -16px rgba(60,40,20,.7)}
+.choice .ci{flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:1.4rem;
+  background:linear-gradient(180deg,#3A322C,#16120F);border:1px solid color-mix(in srgb,var(--accent) 60%,transparent)}
+.choice b{display:block;font-family:var(--serif);font-size:1.35rem;line-height:1.1}
+.choice small{color:#8C7B6A;font-size:.8rem}
+.who{color:#6B5A4B;font-size:.85rem;margin:-.9rem 0 1.2rem}
+.out{margin-top:1.2rem;background:none;border:none;color:color-mix(in srgb,var(--primary) 85%,#000);font:600 .85rem var(--sans);cursor:pointer}
+.out:hover{text-decoration:underline}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:520px){
+  .acct{top:14px;right:14px;padding:.55rem .95rem .55rem .55rem;font-size:.88rem}
+  .acct .ico{width:30px;height:30px}
+  .flare{right:30%;top:12%}
+  .panel{padding:2.1rem 1.4rem 1.6rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .float,.sway,.face,.shadow,.acct,.flare{animation:none}
+  .sway{transform:rotateY(-10deg) rotateX(4deg)}
+}
+</style>
+</head>
+<body>
+<div class="flare" aria-hidden="true"></div>
+
+<main class="stage">
+  <h1 class="sr">{{ theme.logo_text }}</h1>
+  <div class="shadow" aria-hidden="true"></div>
+  <div class="float" aria-hidden="true">
+    <div class="sway">
+      <div class="word" id="word">
+        <span class="face" id="face"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<button class="acct" id="acct-btn" type="button" aria-haspopup="dialog">
+  <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#E2B47E" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span>
+  <span id="acct-label">{{ user.username if user else 'Account' }}</span>
+</button>
+
+<div class="veil" id="veil" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+  <div class="panel">
+    <button class="x" type="button" id="close" aria-label="Close">&times;</button>
+
+    <!-- Sign in -->
+    <section id="v-signin" {% if user %}hidden{% endif %}>
+      <h2 id="panel-title">Shift<span>Guard</span></h2>
+      <p class="sub">Sign in to your account</p>
+      <div class="err" id="err" role="alert"></div>
+      <form id="frm" novalidate>
+        <div class="fg"><label for="email">Email</label>
+          <input id="email" name="email" type="text" inputmode="email" autocomplete="username" placeholder="you@company.com" required></div>
+        <div class="fg"><label for="pw">Password</label>
+          <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
+        <button class="go" type="submit" id="go">Sign in</button>
+      </form>
+    </section>
+
+    <!-- Choose where to go -->
+    <section id="v-choose" {% if not user %}hidden{% endif %}>
+      <h2>Welcome</h2>
+      <p class="sub">Where would you like to go?</p>
+      <p class="who">Signed in as <strong id="who">{{ user.username if user else '' }}</strong></p>
+      <div class="choices">
+        <a class="choice" href="/kiosk"><span class="ci">🕒</span><span><b>Kiosk</b><small>Employee check-in &amp; check-out</small></span></a>
+        <a class="choice" href="/admin"><span class="ci">📊</span><span><b>Admin Dashboard</b><small>Manage staff, attendance &amp; salary</small></span></a>
+      </div>
+      <button class="out" type="button" id="signout">Sign out</button>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Build the 3D name: one gold front face + stacked bronze layers behind it.
+  var name = {{ theme.logo_text|tojson }};
+  var word = document.getElementById('word'), face = document.getElementById('face');
+  if (name === 'ShiftGuard') face.innerHTML = '<span class="s">Shift</span>Guard';
+  else face.textContent = name;
+  var DEPTH = 18;
+  for (var i = DEPTH; i >= 1; i--) {
+    var l = document.createElement('span');
+    l.className = 'layer'; l.textContent = name;
+    var t = i / DEPTH; // 0 = front, 1 = back
+    var r = Math.round(150 - 110*t), g = Math.round(105 - 80*t), b = Math.round(60 - 45*t);
+    l.style.setProperty('--c', 'rgb(' + r + ',' + g + ',' + b + ')');
+    l.style.transform = 'translateZ(' + (-i * 0.0105).toFixed(4) + 'em)'; // depth scales with text size
+    word.insertBefore(l, face);
+  }
+  face.style.transform = 'translateZ(0.003em)';
+
+  // Tilt toward the pointer.
+  var root = document.documentElement;
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    addEventListener('pointermove', function(e){
+      var x = e.clientX / innerWidth - .5, y = e.clientY / innerHeight - .5;
+      root.style.setProperty('--ry', (x * 22).toFixed(2) + 'deg');
+      root.style.setProperty('--rx', (8 - y * 16).toFixed(2) + 'deg');
+    });
+  }
+
+  // Account panel.
+  var veil = document.getElementById('veil'), btn = document.getElementById('acct-btn');
+  function open(){ veil.classList.add('open'); var f = document.querySelector('#v-signin:not([hidden]) #email'); if (f) setTimeout(function(){ f.focus(); }, 150); }
+  function close(){ veil.classList.remove('open'); btn.focus(); }
+  btn.addEventListener('click', open);
+  document.getElementById('close').addEventListener('click', close);
+  veil.addEventListener('click', function(e){ if (e.target === veil) close(); });
+  addEventListener('keydown', function(e){ if (e.key === 'Escape' && veil.classList.contains('open')) close(); });
+  if (/[?&]signin=1/.test(location.search)) open();
+
+  function show(signedIn, who){
+    document.getElementById('v-signin').hidden = signedIn;
+    document.getElementById('v-choose').hidden = !signedIn;
+    document.getElementById('acct-label').textContent = signedIn ? who : 'Account';
+    document.getElementById('who').textContent = who || '';
+  }
+
+  var err = document.getElementById('err'), go = document.getElementById('go');
+  document.getElementById('frm').addEventListener('submit', async function(e){
+    e.preventDefault(); err.classList.remove('show');
+    var email = document.getElementById('email').value.trim(), pw = document.getElementById('pw').value;
+    if (!email || !pw) { err.textContent = 'Enter your email and password'; err.classList.add('show'); return; }
+    go.disabled = true; go.textContent = 'Signing in…';
+    try {
+      var r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email: email, password: pw})});
+      var d = await r.json();
+      if (d.success) { document.getElementById('pw').value = ''; show(true, d.username); }
+      else { err.textContent = d.message || 'Invalid email or password'; err.classList.add('show'); }
+    } catch (_) { err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
+    go.disabled = false; go.textContent = 'Sign in';
+  });
+
+  document.getElementById('signout').addEventListener('click', async function(){
+    try { await fetch('/admin/logout', {method:'POST'}); } catch (_) {}
+    show(false, ''); setTimeout(function(){ document.getElementById('email').focus(); }, 50);
+  });
+})();
+</script>
+</body>
+</html>

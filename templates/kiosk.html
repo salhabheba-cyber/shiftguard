@@ -139,6 +139,9 @@
 </div>
 
 <script>
+// If the sign-in expires, go back to the home page to sign in again.
+const _fetch=window.fetch.bind(window);
+window.fetch=async(...a)=>{const r=await _fetch(...a);if(r.status===401)location.href="/?signin=1";return r;};
 // ── STATE ────────────────────────────────────────────────────────────────────
 let selId=null, selName='', action=null, pin='', branchId=0;
 let camStream=null, capturedPhoto=null;

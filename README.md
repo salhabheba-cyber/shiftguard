@@ -32,8 +32,8 @@ Attendance Management System with PIN + Camera Photo, Salary Calculator, Network
 5. Run: `venv\Scripts\pip install -r requirements.txt`
 6. Run: `venv\Scripts\python init_db.py`
 7. Run: `venv\Scripts\python app.py`
-8. Open browser to: `http://localhost:5000/admin`
-9. Login: `admin / admin123`
+8. Open browser to: `http://localhost:5000` and click **Account** (top right)
+9. Sign in with `admin` / `admin123`, then choose **Kiosk** or **Admin Dashboard**. Set a sign-in email under Settings → Sign-in Email to log in with your email from then on.
 
 ### Install as Windows Service
 

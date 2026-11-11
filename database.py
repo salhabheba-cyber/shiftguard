@@ -204,6 +204,11 @@ def init_db():
     _ensure_columns('employees', [
         ('end_date', 'DATE'),   # last working day; blank = still employed
     ])
+    # Admin accounts can sign in with an email address as well as a username.
+    _ensure_columns('admin_users', [('email', 'TEXT')])
+    with get_db() as c:
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_email ON admin_users (lower(email)) WHERE email IS NOT NULL')
+        c.commit()
 
 def _table_columns(table):
     return {r['name'] for r in q(f'PRAGMA table_info({table})')}
@@ -749,14 +754,27 @@ def get_admin(username):
     r = q('SELECT * FROM admin_users WHERE username=? AND is_active=1', (username,))
     return r[0] if r else None
 
-def create_admin(username, password, role='admin', branch_id=None):
-    run('INSERT INTO admin_users (username,password_hash,role,branch_id) VALUES (?,?,?,?)',
-        (username, hash_pw(password), role, branch_id))
+def get_admin_by_email(email):
+    r = q('SELECT * FROM admin_users WHERE lower(email)=lower(?) AND is_active=1', (email.strip(),))
+    return r[0] if r else None
 
-def verify_admin(username, password):
-    adm = get_admin(username)
+def _clean_email(email):
+    email = (email or '').strip()
+    return email or None
+
+def create_admin(username, password, role='admin', branch_id=None, email=None):
+    run('INSERT INTO admin_users (username,password_hash,role,branch_id,email) VALUES (?,?,?,?,?)',
+        (username, hash_pw(password), role, branch_id, _clean_email(email)))
+
+def set_admin_email(username, email):
+    run('UPDATE admin_users SET email=? WHERE username=?', (_clean_email(email), username))
+
+def verify_admin(login, password):
+    """`login` is an account email (contains '@') or a username."""
+    login = (login or '').strip()
+    adm = get_admin_by_email(login) if '@' in login else get_admin(login)
     if adm and check_pw(adm['password_hash'], password):
-        run('UPDATE admin_users SET last_login=CURRENT_TIMESTAMP WHERE username=?', (username,))
+        run('UPDATE admin_users SET last_login=CURRENT_TIMESTAMP WHERE id=?', (adm['id'],))
         return adm
     return None
 
@@ -769,4 +787,4 @@ def change_password(username, current_pw, new_pw):
     return True, "Password changed. Please login again."
 
 def get_all_admins():
-    return q('SELECT id,username,role,branch_id,is_active,last_login FROM admin_users ORDER BY username')
+    return q('SELECT id,username,email,role,branch_id,is_active,last_login FROM admin_users ORDER BY username')

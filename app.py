@@ -130,10 +130,16 @@ def _client_ip():
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC LANDING
+# ══════════════════════════════════════════════════════════════════════════════
 @app.route('/')
-def home(): return redirect(url_for('kiosk'))
+def home():
+    return render_template('landing.html', theme=database.get_theme(),
+                           user=current_user if current_user.is_authenticated else None)
 
 @app.route('/kiosk')
+@login_required
 def kiosk():
     theme    = database.get_theme()
     branches = database.get_branches()
@@ -144,6 +150,7 @@ def kiosk():
                            checked_in_count=checked, today=today)
 
 @app.route('/api/kiosk/search')
+@api_login_required
 def kiosk_search():
     q         = request.args.get('q','').strip()
     branch_id = request.args.get('branch_id', type=int)
@@ -154,6 +161,7 @@ def kiosk_search():
         'shift_end':e['shift_end']} for e in emps]})
 
 @app.route('/api/kiosk/checkin', methods=['POST'])
+@api_login_required
 def kiosk_checkin():
     d    = request.json or {}
     eid  = d.get('employee_id')
@@ -174,6 +182,7 @@ def kiosk_checkin():
                     'time':datetime.now().strftime('%H:%M')})
 
 @app.route('/api/kiosk/checkout', methods=['POST'])
+@api_login_required
 def kiosk_checkout():
     d    = request.json or {}
     eid  = d.get('employee_id')
@@ -194,6 +203,7 @@ def kiosk_checkout():
                     'time':datetime.now().strftime('%H:%M')})
 
 @app.route('/api/kiosk/status')
+@api_login_required
 def kiosk_status():
     bid  = request.args.get('branch_id', type=int)
     logs = database.get_today_attendance(bid)
@@ -204,18 +214,20 @@ def kiosk_status():
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route('/admin/login', methods=['GET'])
 def login_page():
-    return render_template('login.html', theme=database.get_theme())
+    # Sign-in now happens on the public landing page.
+    return redirect(url_for('home', signin=1))
 
 @app.route('/admin/login', methods=['POST'])
 def login_post():
-    d    = request.json or {}
-    user = database.verify_admin(d.get('username',''), d.get('password',''))
+    d     = request.json or {}
+    login = (d.get('email') or d.get('username') or '').strip()
+    user  = database.verify_admin(login, d.get('password',''))
     if not user:
-        database.log_event('login_fail', d.get('username',''), _client_ip(), 'Wrong password')
-        return jsonify({'success':False,'message':'Invalid username or password'}), 401
+        database.log_event('login_fail', login, _client_ip(), 'Wrong password')
+        return jsonify({'success':False,'message':'Invalid email or password'}), 401
     login_user(AdminUser(user), remember=True)
     database.log_event('login_ok', user['username'], _client_ip(), '')
-    return jsonify({'success':True})
+    return jsonify({'success':True,'username':user['username']})
 
 @app.route('/admin/logout', methods=['POST'])
 @login_required
@@ -661,10 +673,22 @@ def api_users():
 def api_add_user():
     d = request.json or {}
     try:
-        database.create_admin(d['username'],d['password'],d.get('role','admin'),d.get('branch_id'))
+        database.create_admin(d['username'],d['password'],d.get('role','admin'),d.get('branch_id'),d.get('email'))
         return jsonify({'success':True,'message':'User created'})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
+
+@app.route('/api/admin/account-email', methods=['POST'])
+@api_login_required
+def api_set_account_email():
+    email = ((request.json or {}).get('email') or '').strip()
+    if email and ('@' not in email or '.' not in email.split('@')[-1]):
+        return jsonify({'success':False,'message':'Enter a valid email address'}), 400
+    try:
+        database.set_admin_email(current_user.username, email)
+    except Exception:
+        return jsonify({'success':False,'message':'That email is already used by another account'}), 400
+    return jsonify({'success':True,'message':'Sign-in email saved' if email else 'Sign-in email removed'})
 
 # ── LOGS ───────────────────────────────────────────────────────────────────────
 @app.route('/api/admin/logs')

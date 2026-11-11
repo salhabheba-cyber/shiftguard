@@ -447,6 +447,13 @@ body{font-family:var(--font)}
       </div>
 
       <div class="card">
+        <h3 class="card-title">✉️ Sign-in Email</h3>
+        <p style="font-size:.85rem;color:#8C7B6A;margin-bottom:.9rem">Use this email with your password to sign in on the ShiftGuard home page. You can still sign in with your username <strong>{{ user.username }}</strong>.</p>
+        <div class="form-group" style="max-width:420px"><label>Email</label><input type="email" id="acct-email" placeholder="you@company.com" autocomplete="email"></div>
+        <button class="btn btn-primary" onclick="saveAccountEmail()">💾 Save Email</button>
+      </div>
+
+      <div class="card">
         <h3 class="card-title">🔐 Change Password</h3>
         <div class="form-group"><label>Current Password</label><input type="password" id="pw-cur"></div>
         <div class="form-group"><label>New Password (min 8 chars)</label><input type="password" id="pw-new"></div>
@@ -460,7 +467,7 @@ body{font-family:var(--font)}
           <button class="btn btn-primary btn-sm" onclick="openAddAdmin()">➕ Add Admin</button>
         </div>
         <div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Username</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th></tr></thead>
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th></tr></thead>
           <tbody id="admin-tbody"></tbody>
         </table></div>
       </div>
@@ -630,6 +637,7 @@ body{font-family:var(--font)}
 <div class="modal-box sm">
   <div class="modal-head"><h3>👮 Add Admin User</h3><button class="modal-close" onclick="closeM('admin-modal')">&times;</button></div>
   <div class="form-group"><label>Username</label><input type="text" id="adm-u"></div>
+  <div class="form-group"><label>Sign-in Email</label><input type="email" id="adm-email" placeholder="name@company.com"></div>
   <div class="form-group"><label>Password (min 8 chars)</label><input type="password" id="adm-pw"></div>
   <div class="form-group"><label>Role</label>
     <select id="adm-role"><option value="admin">Admin</option><option value="manager">Branch Manager</option><option value="superadmin">Super Admin</option></select>
@@ -648,6 +656,7 @@ body{font-family:var(--font)}
   <img id="lb-img" src="" alt="Photo">
 </div>
 
+<script>var CURRENT_USER={{ user.username|tojson }};</script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>
