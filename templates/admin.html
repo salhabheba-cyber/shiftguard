@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>{{ theme.logo_text }} — Admin</title>
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/css/main.css">
 <style>
 :root{
@@ -57,7 +60,7 @@ body{font-family:var(--font)}
 <!-- MAIN -->
 <main class="admin-main">
   <div class="topbar">
-    <h1>🛡️ {{ theme.logo_text }}</h1>
+    <h1><img src="/static/images/brand/shiftguard-mark.svg" alt="" style="height:1.2em;vertical-align:-.2em;margin-right:.35em">{{ theme.logo_text }}</h1>
     <div class="topbar-right">
       <label style="font-size:.82rem">Branch:</label>
       <select class="branch-filter" id="g-branch" onchange="setBranch(this.value)">
