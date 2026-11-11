@@ -178,6 +178,12 @@ def init_db():
         for k, v in config.DEFAULT_THEME.items():
             try: c.execute("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", (f'theme_{k}', v))
             except: pass
+        # Move installs still on the old teal default colours to the new gold
+        # palette; colours an admin chose themselves are left alone.
+        for k, old in OLD_DEFAULT_THEME.items():
+            try: c.execute("UPDATE settings SET value=? WHERE key=? AND lower(value)=lower(?)",
+                           (config.DEFAULT_THEME[k], f'theme_{k}', old))
+            except: pass
         c.commit()
         for name, is_paid in config.DEFAULT_LEAVE_TYPES:
             try: c.execute("INSERT OR IGNORE INTO leave_types (name,is_paid) VALUES (?,?)", (name, is_paid))
@@ -243,6 +249,8 @@ def set_setting(key, value):
 def get_theme():
     return {k: get_setting(f'theme_{k}', config.DEFAULT_THEME.get(k,''))
             for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']}
+
+OLD_DEFAULT_THEME = {'primary':'00A8A8','secondary':'E8F8F8','accent':'2ab3b8','dark':'1c3a3b','text':'2d4a4b'}
 
 # ── BRANCHES ──────────────────────────────────────────────────────────────────
 def get_branches(active_only=True):

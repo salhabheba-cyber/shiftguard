@@ -58,11 +58,11 @@ DEFAULT_BLOCKED_SITES = [
 ]
 
 DEFAULT_THEME = {
-    'primary':   '00A8A8',
-    'secondary': 'E8F8F8',
-    'accent':    '2ab3b8',
-    'dark':      '1c3a3b',
-    'text':      '2d4a4b',
+    'primary':   'B8864E',
+    'secondary': 'F3ECE2',
+    'accent':    'D4A26A',
+    'dark':      '1E1915',
+    'text':      '3A2F27',
     'font':      'Segoe UI',
     'logo_text': 'ShiftGuard',
     'dark_mode': '0',

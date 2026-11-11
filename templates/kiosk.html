@@ -8,9 +8,11 @@
 <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <link rel="manifest" href="/static/manifest.json">
-<meta name="theme-color" content="#00A8A8">
+<meta name="theme-color" content="#1E1915">
 <style>
   :root{
     --primary:#{{ theme.primary }};
@@ -28,11 +30,11 @@
 
   <!-- HEADER -->
   <header class="kiosk-header">
-    <img src="/static/images/myspa_logo.jpg" class="kiosk-logo" onerror="this.style.display='none'" alt="MySpa">
+    <img src="/static/images/brand/shiftguard-mark.svg" class="kiosk-logo" alt="">
     <h1>{{ theme.logo_text }}</h1>
     <div class="kiosk-sub">Employee Attendance System</div>
     <div class="kiosk-clock" id="clock">00:00:00</div>
-    <div style="font-size:.8rem;color:#78909c;margin-top:.2rem">{{ today }}</div>
+    <div class="kiosk-date">{{ today }}</div>
   </header>
 
   <main class="kiosk-main">
@@ -172,7 +174,7 @@ document.getElementById('emp-search').addEventListener('input', async e=>{
     `<div class="suggestion-item" onclick="selectEmp(${em.id},'${em.name.replace(/'/g,"\\'")}','${em.shift_start}','${em.shift_end}','${em.position||''}')">
       <strong>${em.name}</strong>
       <small>${em.position?em.position+' · ':''}${em.shift_start} – ${em.shift_end}</small>
-    </div>`).join('')||'<div style="padding:.9rem;color:#78909c">No results</div>';
+    </div>`).join('')||'<div style="padding:.9rem;color:#8C7B6A">No results</div>';
 });
 
 function selectEmp(id,name,ss,se,pos){
@@ -295,9 +297,7 @@ async function doCheckInOut(photoStatus){
       const ph=document.getElementById('r-photo');
       if(d.photo_path){ph.src=d.photo_path;ph.style.display='block';}
       else ph.style.display='none';
-      document.getElementById('result-box').style.background=
-        action==='in'?'linear-gradient(135deg,#27ae60,#1e8449)':
-                       'linear-gradient(135deg,#00A8A8,#1a8a8e)';
+      document.getElementById('result-box').className='result-box '+(action==='in'?'in':'out');
       show('s-result',true);
       refreshCnt();
       setTimeout(reset,5000);

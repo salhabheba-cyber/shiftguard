@@ -81,15 +81,15 @@ async function loadDashboard(){
   document.getElementById('s-absent').textContent=d.absent||0;
   document.getElementById('today-date').textContent=d.today||'';
   var tb=document.getElementById('today-tbody');
-  if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:2rem;color:#78909c">No check-ins yet today</td></tr>';return;}
-  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong><br><small style="color:#78909c">'+l.position+'</small></td><td>'+(l.branch_name||'—')+'</td><td>'+(l.check_in?fmtT(l.check_in):'—')+ipTag(l.check_in_ip)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+(l.check_out?fmtT(l.check_out):'—')+ipTag(l.check_out_ip)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td></tr>';}).join('');
+  if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:2rem;color:#8C7B6A">No check-ins yet today</td></tr>';return;}
+  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong><br><small style="color:#8C7B6A">'+l.position+'</small></td><td>'+(l.branch_name||'—')+'</td><td>'+(l.check_in?fmtT(l.check_in):'—')+ipTag(l.check_in_ip)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+(l.check_out?fmtT(l.check_out):'—')+ipTag(l.check_out_ip)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td></tr>';}).join('');
 }
 
 async function loadAttendance(){
   var url='/api/admin/attendance?start='+gv('att-from')+'&end='+gv('att-to')+(gBranch?'&branch_id='+gBranch:'');
   var d=await api(url);
   var tb=document.getElementById('att-tbody');
-  if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:2rem;color:#78909c">No records found</td></tr>';return;}
+  if(!(d.logs||[]).length){tb.innerHTML='<tr><td colspan="11" style="text-align:center;padding:2rem;color:#8C7B6A">No records found</td></tr>';return;}
   tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td><strong>'+l.name+'</strong></td><td>'+(l.branch_name||'—')+'</td><td>'+l.date+'</td><td>'+fmtT(l.check_in)+ipTag(l.check_in_ip)+'</td><td>'+thumb(l.check_in_photo,l.id,'check_in_photo')+'</td><td>'+fmtT(l.check_out)+ipTag(l.check_out_ip)+'</td><td>'+thumb(l.check_out_photo,l.id,'check_out_photo')+'</td><td>'+(l.hours_worked||0)+'h</td><td>'+(l.minutes_late>0?'<span style="color:var(--warning)">'+l.minutes_late+'m</span>':'—')+'</td><td>'+badge(l.status)+'</td><td><button class="btn btn-warn btn-xs" onclick="openEditAtt('+l.id+',\''+l.check_in+'\',\''+l.check_out+'\',\''+l.notes+'\')">✏️</button></td></tr>';}).join('');
 }
 
@@ -127,7 +127,7 @@ async function loadEmployees(){
   var d=await api('/api/admin/employees'+(qs.length?'?'+qs.join('&'):''));
   allEmployees=d.employees||[];
   var tb=document.getElementById('emp-tbody');
-  if(!allEmployees.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:#78909c">No employees yet.</td></tr>';return;}
+  if(!allEmployees.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:#8C7B6A">No employees yet.</td></tr>';return;}
   tb.innerHTML=allEmployees.map(function(e){return'<tr'+(e.has_left?' style="opacity:.6"':'')+'><td><strong>'+e.name+'</strong>'+(e.has_left?' <span class="badge b-gray">Inactive</span>':'')+'</td><td>'+(e.position||'—')+'</td><td>'+(e.branch_name||'—')+'</td><td>'+(e.phone||'—')+'</td><td>'+e.shift_start+'–'+e.shift_end+'</td><td style="font-size:.78rem">'+(e.working_days||'').replace(/,/g,' ')+'</td><td>'+(e.salary_amount?'$'+parseFloat(e.salary_amount).toLocaleString():'—')+'</td><td>'+(e.hire_date||'—')+'</td><td>'+(e.end_date||'—')+'</td><td style="display:flex;gap:.3rem;flex-wrap:wrap"><button class="btn btn-warn btn-xs" onclick="editEmp('+e.id+')">✏️ Edit</button><button class="btn btn-primary btn-xs" onclick="openResetPin('+e.id+',\''+e.name+'\')">🔑 PIN</button><button class="btn btn-danger btn-xs" onclick="delEmp('+e.id+',\''+e.name+'\')">🗑 Delete</button></td></tr>';}).join('');
 }
 
@@ -233,7 +233,7 @@ async function loadSalHistory(){
   var yr=gv('sal-yr');var mo=gv('sal-mo');
   var url='/api/admin/salary/records?';if(yr)url+='year='+yr+'&';if(mo)url+='month='+mo;
   var d=await api(url);var tb=document.getElementById('sal-hist-tbody');
-  if(!(d.records||[]).length){tb.innerHTML='<tr><td colspan="13" style="text-align:center;color:#78909c;padding:1.5rem">No records</td></tr>';return;}
+  if(!(d.records||[]).length){tb.innerHTML='<tr><td colspan="13" style="text-align:center;color:#8C7B6A;padding:1.5rem">No records</td></tr>';return;}
   tb.innerHTML=(d.records||[]).map(function(r){
     var isHourly=r.salary_type==='hourly';
     return '<tr><td><strong>'+r.name+'</strong></td><td>'+r.year+'/'+String(r.month).padStart(2,'0')+'</td><td>'+(isHourly?'Hourly':'Monthly')+'</td><td>$'+(r.base_salary||0).toLocaleString()+(isHourly?'/hr':'')+'</td><td style="color:var(--success)">'+r.days_present+'</td><td style="color:var(--success)">'+(r.days_leave_paid||0)+'</td><td style="color:var(--warning)">'+(r.days_leave_unpaid||0)+'</td><td style="color:var(--danger)">'+r.days_absent+'</td><td style="color:var(--warning)">'+r.days_late+'</td><td>+'+(r.overtime_hours||0).toFixed(2)+'h</td><td style="color:var(--danger)">−$'+((r.absent_deduction||0)+(r.late_deduction||0)).toFixed(2)+'</td><td><strong style="color:var(--primary)">$'+(r.net_salary||0).toLocaleString()+'</strong></td><td>'+(r.is_paid?'<span class="badge b-green">✅ Paid</span>':'<button class="btn btn-success btn-xs" onclick="markPaid('+r.employee_id+','+r.year+','+r.month+')">Mark Paid</button>')+'</td></tr>';
@@ -255,7 +255,7 @@ async function loadLeaveTypes(){
   var d=await api('/api/admin/leave-types');
   allLeaveTypes=d.leave_types||[];
   var tb=document.getElementById('leave-type-tbody');if(!tb)return;
-  if(!allLeaveTypes.length){tb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#78909c">No leave types yet.</td></tr>';return;}
+  if(!allLeaveTypes.length){tb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#8C7B6A">No leave types yet.</td></tr>';return;}
   tb.innerHTML=allLeaveTypes.map(function(t){
     var statusBadge=!t.is_active?'<span class="badge b-gray">Inactive</span>':(t.is_paid?'<span class="badge b-green">✅ Paid</span>':'<span class="badge b-yellow">🚫 Unpaid</span>');
     return '<tr><td><strong>'+t.name+'</strong></td><td>'+statusBadge+'</td><td><button class="btn btn-warn btn-xs" onclick="editLeaveType('+t.id+')">✏️</button> <button class="btn btn-danger btn-xs" onclick="delLeaveType('+t.id+',\''+t.name+'\')">🗑</button></td></tr>';
@@ -338,7 +338,7 @@ async function loadLeave(){
   var d=await api(url);
   allLeaveRecords=d.records||[];
   var tb=document.getElementById('leave-tbody');
-  if(!allLeaveRecords.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">No leave records found</td></tr>';return;}
+  if(!allLeaveRecords.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:2rem;color:#8C7B6A">No leave records found</td></tr>';return;}
   tb.innerHTML=allLeaveRecords.map(function(r){
     return '<tr><td><strong>'+r.employee_name+'</strong></td><td>'+r.leave_type_name+'</td><td>'+r.start_date+'</td><td>'+r.end_date+'</td><td>'+r.days+'</td><td>'+(r.is_paid?'<span class="badge b-green">✅ Paid</span>':'<span class="badge b-yellow">🚫 Unpaid</span>')+'</td><td>'+(r.notes||'—')+'</td><td><button class="btn btn-warn btn-xs" onclick="openEditLeave('+r.id+')">✏️</button></td></tr>';
   }).join('');
@@ -354,9 +354,9 @@ async function loadNotes(){
   var d=await api('/api/admin/notes?year='+ym.year+'&month='+ym.month+(gBranch?'&branch_id='+gBranch:''));
   var emps=d.employees||[];
   var list=document.getElementById('notes-list');if(!list)return;
-  if(!emps.length){list.innerHTML='<p style="color:#78909c">No employees found.</p>';return;}
+  if(!emps.length){list.innerHTML='<p style="color:#8C7B6A">No employees found.</p>';return;}
   list.innerHTML=emps.map(function(e){
-    return '<div class="sal-card"><h4 style="color:var(--dark);margin-bottom:.6rem">👤 '+e.name+' <small style="color:#78909c;font-weight:400">'+(e.position||'')+'</small></h4>'+
+    return '<div class="sal-card"><h4 style="color:var(--dark);margin-bottom:.6rem">👤 '+e.name+' <small style="color:#8C7B6A;font-weight:400">'+(e.position||'')+'</small></h4>'+
       '<textarea class="note-box" id="note-'+e.id+'" placeholder="Write a note for '+e.name+' this month...">'+(e.note||'')+'</textarea>'+
       '<div style="text-align:right;margin-top:.5rem"><button class="btn btn-primary btn-sm" onclick="saveNote('+e.id+')">💾 Save Note</button></div></div>';
   }).join('');
@@ -376,14 +376,14 @@ async function loadPhotos(){
   var d=await api('/api/admin/photos?start='+gv('ph-from')+'&end='+gv('ph-to'));
   var grid=document.getElementById('photo-grid');var photos=d.photos||[];
   sv('ph-select-all',false);updatePhotoSelCount();
-  if(!photos.length){grid.innerHTML='<p style="color:#78909c;grid-column:1/-1">No photos in this date range.</p>';return;}
+  if(!photos.length){grid.innerHTML='<p style="color:#8C7B6A;grid-column:1/-1">No photos in this date range.</p>';return;}
   grid.innerHTML=photos.map(function(p){
     var key=p.att_id+'|'+p.field;
     return '<div class="photo-card">'+
       '<label class="photo-check"><input type="checkbox" class="ph-cb" value="'+key+'" onchange="updatePhotoSelCount()"></label>'+
       '<img src="'+p.url+'" style="width:100%;height:120px;object-fit:cover;cursor:pointer" onclick="showLightbox(\''+p.url+'\')" alt="">'+
       '<div style="padding:.5rem .6rem"><div style="font-size:.8rem;font-weight:600">'+p.employee+'</div>'+
-      '<div style="font-size:.72rem;color:#78909c">'+p.date+' · '+p.type+'</div>'+
+      '<div style="font-size:.72rem;color:#8C7B6A">'+p.date+' · '+p.type+'</div>'+
       '<button class="btn btn-danger btn-xs" style="margin-top:.4rem;width:100%" onclick="delPhoto('+p.att_id+',\''+p.field+'\');this.closest(\'.photo-card\').remove()">🗑 Delete</button></div></div>';
   }).join('');
 }
@@ -432,7 +432,7 @@ async function purgePhotosNow(){
 
 async function loadBlocked(){
   var d=await api('/api/admin/blocked-sites');var tb=document.getElementById('blocked-tbody');
-  tb.innerHTML=(d.sites||[]).map(function(s){return'<tr><td><code style="color:var(--primary)">'+s.domain+'</code></td><td>'+s.category+'</td><td><button class="btn btn-danger btn-xs" onclick="delBlocked('+s.id+')">Remove</button></td></tr>';}).join('')||'<tr><td colspan="3" style="text-align:center;color:#78909c;padding:1rem">No blocked sites</td></tr>';
+  tb.innerHTML=(d.sites||[]).map(function(s){return'<tr><td><code style="color:var(--primary)">'+s.domain+'</code></td><td>'+s.category+'</td><td><button class="btn btn-danger btn-xs" onclick="delBlocked('+s.id+')">Remove</button></td></tr>';}).join('')||'<tr><td colspan="3" style="text-align:center;color:#8C7B6A;padding:1rem">No blocked sites</td></tr>';
 }
 async function addBlocked(){
   var domain=gv('new-domain').trim().toLowerCase();if(!domain)return msg('err','Enter a domain');
@@ -464,8 +464,8 @@ async function scanNetwork(){
     var d=await api('/api/admin/network/scan');var devices=d.devices||[];
     document.getElementById('n-devcount').textContent=devices.length;
     var tb=document.getElementById('devices-tbody');
-    if(!devices.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#78909c">No devices found</td></tr>';return;}
-    tb.innerHTML=devices.map(function(dv){return'<tr><td><code style="color:var(--primary)">'+dv.ip+'</code></td><td><code style="font-size:.78rem">'+dv.mac+'</code></td><td>'+(dv.hostname||'<span style="color:#78909c">Unknown</span>')+'</td><td><span class="badge b-blue">'+dv.type+'</span></td></tr>';}).join('');
+    if(!devices.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#8C7B6A">No devices found</td></tr>';return;}
+    tb.innerHTML=devices.map(function(dv){return'<tr><td><code style="color:var(--primary)">'+dv.ip+'</code></td><td><code style="font-size:.78rem">'+dv.mac+'</code></td><td>'+(dv.hostname||'<span style="color:#8C7B6A">Unknown</span>')+'</td><td><span class="badge b-blue">'+dv.type+'</span></td></tr>';}).join('');
     msg('ok','Found '+devices.length+' device(s)');
   }catch(e){msg('err','Scan failed');}
 }
@@ -483,7 +483,7 @@ async function removeHosts(){
 
 async function loadLogs(){
   var d=await api('/api/admin/logs');var tb=document.getElementById('logs-tbody');
-  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td style="font-size:.78rem">'+(l.created_at||'').substring(0,16)+'</td><td><span class="badge '+(l.event_type.includes('fail')?'b-red':'b-blue')+'">'+l.event_type+'</span></td><td>'+(l.user||'—')+'</td><td style="font-size:.78rem">'+(l.ip||'—')+'</td><td style="font-size:.78rem">'+(l.details||'—')+'</td></tr>';}).join('')||'<tr><td colspan="5" style="text-align:center;color:#78909c;padding:1rem">No logs</td></tr>';
+  tb.innerHTML=(d.logs||[]).map(function(l){return'<tr><td style="font-size:.78rem">'+(l.created_at||'').substring(0,16)+'</td><td><span class="badge '+(l.event_type.includes('fail')?'b-red':'b-blue')+'">'+l.event_type+'</span></td><td>'+(l.user||'—')+'</td><td style="font-size:.78rem">'+(l.ip||'—')+'</td><td style="font-size:.78rem">'+(l.details||'—')+'</td></tr>';}).join('')||'<tr><td colspan="5" style="text-align:center;color:#8C7B6A;padding:1rem">No logs</td></tr>';
 }
 
 function applyPreset(p,s){document.getElementById('th-p').value='#'+p;sv('th-p-hex',p);document.getElementById('th-s').value='#'+s;sv('th-s-hex',s);}

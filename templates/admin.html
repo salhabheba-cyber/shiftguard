@@ -7,6 +7,8 @@
 <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <style>
 :root{
@@ -23,7 +25,7 @@ body{font-family:var(--font)}
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <img src="/static/images/myspa_logo.jpg" class="sb-logo" onerror="this.style.display='none'">
+    <img src="/static/images/brand/shiftguard-mark.svg" class="sb-logo" alt="">
     <h2>{{ theme.logo_text }}</h2>
     <p>Management System</p>
   </div>
@@ -60,7 +62,7 @@ body{font-family:var(--font)}
 <!-- MAIN -->
 <main class="admin-main">
   <div class="topbar">
-    <h1><img src="/static/images/brand/shiftguard-mark.svg" alt="" style="height:1.2em;vertical-align:-.2em;margin-right:.35em">{{ theme.logo_text }}</h1>
+    <h1><img src="/static/images/brand/shiftguard-mark.svg" alt="">{{ theme.logo_text }}</h1>
     <div class="topbar-right">
       <label style="font-size:.82rem">Branch:</label>
       <select class="branch-filter" id="g-branch" onchange="setBranch(this.value)">
@@ -90,7 +92,7 @@ body{font-family:var(--font)}
         <h3 class="card-title">📋 Today's Attendance — <span id="today-date">-</span></h3>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Branch</th><th>Check In</th><th>Photo</th><th>Check Out</th><th>Photo</th><th>Hours</th><th>Late</th><th>Status</th></tr></thead>
-          <tbody id="today-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+          <tbody id="today-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#8C7B6A">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -113,7 +115,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Branch</th><th>Date</th><th>Check In</th><th>In Photo</th><th>Check Out</th><th>Out Photo</th><th>Hours</th><th>Late</th><th>Status</th><th>Edit</th></tr></thead>
-          <tbody id="att-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#78909c">Search above</td></tr></tbody>
+          <tbody id="att-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#8C7B6A">Search above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -135,7 +137,7 @@ body{font-family:var(--font)}
         </label>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Start Date</th><th>End Date</th><th>Actions</th></tr></thead>
-          <tbody id="emp-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+          <tbody id="emp-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#8C7B6A">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -161,10 +163,10 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">🏷️ Leave Types</h3>
           <button class="btn btn-primary btn-sm" onclick="openAddLeaveType()">➕ Add Leave Type</button>
         </div>
-        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Mark each leave type <strong>Paid</strong> or <strong>Unpaid</strong>. Paid leave days are paid in full and never reduce salary. Unpaid leave days are deducted exactly like an absence. Annual Leave and Sick Leave are pre-set — change them any time, or add your own types.</p>
+        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Mark each leave type <strong>Paid</strong> or <strong>Unpaid</strong>. Paid leave days are paid in full and never reduce salary. Unpaid leave days are deducted exactly like an absence. Annual Leave and Sick Leave are pre-set — change them any time, or add your own types.</p>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Leave Type</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="leave-type-tbody"><tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#78909c">Loading...</td></tr></tbody>
+          <tbody id="leave-type-tbody"><tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#8C7B6A">Loading...</td></tr></tbody>
         </table></div>
       </div>
 
@@ -186,7 +188,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Leave Type</th><th>Start</th><th>End</th><th>Days</th><th>Paid?</th><th>Notes</th><th>Edit</th></tr></thead>
-          <tbody id="leave-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#78909c">Search above</td></tr></tbody>
+          <tbody id="leave-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#8C7B6A">Search above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -198,7 +200,7 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">📝 Monthly Notes</h3>
           <div class="form-group" style="margin:0"><input type="month" id="notes-month" onchange="loadNotes()"></div>
         </div>
-        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Keep a private note per employee for the selected month — performance, warnings, praise, anything worth remembering.</p>
+        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Keep a private note per employee for the selected month — performance, warnings, praise, anything worth remembering.</p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem">
           <button class="btn btn-outline btn-sm" onclick="exportNotes('excel')">📊 Excel</button>
           <button class="btn btn-outline btn-sm" onclick="exportNotes('word')">📝 Word</button>
@@ -236,7 +238,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap" style="margin-top:1rem"><table class="tbl">
           <thead><tr><th>Employee</th><th>Month</th><th>Type</th><th>Base/Rate</th><th>Present</th><th>Paid Leave</th><th>Unpaid Leave</th><th>Absent</th><th>Late Days</th><th>OT Hours</th><th>Deductions</th><th>Net Salary</th><th>Paid</th></tr></thead>
-          <tbody id="sal-hist-tbody"><tr><td colspan="13" style="text-align:center;color:#78909c;padding:1.5rem">Enter year & month above</td></tr></tbody>
+          <tbody id="sal-hist-tbody"><tr><td colspan="13" style="text-align:center;color:#8C7B6A;padding:1.5rem">Enter year & month above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -263,11 +265,11 @@ body{font-family:var(--font)}
             </div>
           </div>
         </div>
-        <p style="color:#78909c;font-size:.85rem">Monthly report includes: Attendance Summary, Salary Breakdown, Daily Log, Leave, and Monthly Notes.</p>
+        <p style="color:#8C7B6A;font-size:.85rem">Monthly report includes: Attendance Summary, Salary Breakdown, Daily Log, Leave, and Monthly Notes.</p>
       </div>
       <div class="card">
         <h3 class="card-title">💾 Database Backup</h3>
-        <p style="color:#78909c;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
+        <p style="color:#8C7B6A;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
         <button class="btn btn-success" onclick="window.open('/api/admin/backup','_blank')">📥 Download Backup</button>
       </div>
     </div>
@@ -276,7 +278,7 @@ body{font-family:var(--font)}
     <div id="photos" class="tab-content">
       <div class="card">
         <h3 class="card-title">📸 Photo Management</h3>
-        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem" id="ph-autodelete-note"></p>
+        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem" id="ph-autodelete-note"></p>
         <div class="form-row" style="margin-bottom:1rem">
           <div class="form-group"><label>From</label><input type="date" id="ph-from"></div>
           <div class="form-group"><label>To</label><input type="date" id="ph-to"></div>
@@ -312,10 +314,10 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">📱 Devices on This WiFi</h3>
           <button class="btn btn-primary" onclick="scanNetwork()">🔄 Scan Network</button>
         </div>
-        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Shows all phones and computers connected to the same WiFi as this computer.</p>
+        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Shows all phones and computers connected to the same WiFi as this computer.</p>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>IP Address</th><th>MAC Address</th><th>Hostname / Device</th><th>Type</th></tr></thead>
-          <tbody id="devices-tbody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#78909c">Click "Scan Network" to see connected devices</td></tr></tbody>
+          <tbody id="devices-tbody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#8C7B6A">Click "Scan Network" to see connected devices</td></tr></tbody>
         </table></div>
       </div>
 
@@ -377,7 +379,7 @@ body{font-family:var(--font)}
         <button class="btn btn-dark btn-sm" onclick="loadLogs()" style="margin-bottom:1rem">🔄 Refresh</button>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Time</th><th>Event</th><th>User</th><th>IP</th><th>Details</th></tr></thead>
-          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;color:#78909c;padding:1.5rem">Click Refresh</td></tr></tbody>
+          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;color:#8C7B6A;padding:1.5rem">Click Refresh</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -386,7 +388,7 @@ body{font-family:var(--font)}
     <div id="settings" class="tab-content">
       <div class="card">
         <h3 class="card-title">📷 Photo Auto-Delete</h3>
-        <p style="color:#78909c;font-size:.85rem;margin-bottom:1rem">Check-in/out photos take up storage over time. Turn this on to automatically delete photos older than the retention period below — the default of 30 days means each month's photos disappear on their own.</p>
+        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Check-in/out photos take up storage over time. Turn this on to automatically delete photos older than the retention period below — the default of 30 days means each month's photos disappear on their own.</p>
         <div class="form-row">
           <div class="form-group"><label>Auto-Delete</label>
             <select id="ph-auto-enabled"><option value="1">✅ Enabled</option><option value="0">🚫 Disabled</option></select>
@@ -398,7 +400,7 @@ body{font-family:var(--font)}
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="savePhotoSettings()">💾 Save</button>
           <button class="btn btn-danger" onclick="purgePhotosNow()">🧹 Run Cleanup Now</button>
-          <span id="ph-last-purge" style="font-size:.8rem;color:#78909c"></span>
+          <span id="ph-last-purge" style="font-size:.8rem;color:#8C7B6A"></span>
         </div>
       </div>
 
@@ -407,14 +409,14 @@ body{font-family:var(--font)}
         <div class="form-row">
           <div class="form-group"><label>Primary Color</label>
             <div class="color-row">
-              <input type="color" id="th-p" value="#00A8A8" oninput="document.getElementById('th-p-hex').value=this.value.replace('#','')">
-              <input type="text" id="th-p-hex" placeholder="00A8A8" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
+              <input type="color" id="th-p" value="#{{ theme.primary }}" oninput="document.getElementById('th-p-hex').value=this.value.replace('#','')">
+              <input type="text" id="th-p-hex" placeholder="B8864E" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
             </div>
           </div>
           <div class="form-group"><label>Secondary / Background</label>
             <div class="color-row">
-              <input type="color" id="th-s" value="#E8F8F8" oninput="document.getElementById('th-s-hex').value=this.value.replace('#','')">
-              <input type="text" id="th-s-hex" placeholder="E8F8F8" oninput="if(this.value.length===6)document.getElementById('th-s').value='#'+this.value">
+              <input type="color" id="th-s" value="#{{ theme.secondary }}" oninput="document.getElementById('th-s-hex').value=this.value.replace('#','')">
+              <input type="text" id="th-s-hex" placeholder="F3ECE2" oninput="if(this.value.length===6)document.getElementById('th-s').value='#'+this.value">
             </div>
           </div>
         </div>
@@ -432,12 +434,13 @@ body{font-family:var(--font)}
         <div style="margin-bottom:1rem">
           <strong style="font-size:.88rem">Quick Color Presets:</strong>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+            <button class="preset-btn" style="background:linear-gradient(135deg,#F3D3A6,#B8864E);color:#1E1915" onclick="applyPreset('B8864E','F3ECE2')">✨ Luxe Gold</button>
             <button class="preset-btn" style="background:#00A8A8" onclick="applyPreset('00A8A8','E8F8F8')">🌊 Teal</button>
             <button class="preset-btn" style="background:#8e44ad" onclick="applyPreset('8e44ad','f5eef8')">💜 Purple</button>
             <button class="preset-btn" style="background:#c0392b" onclick="applyPreset('c0392b','fdecea')">❤️ Red</button>
             <button class="preset-btn" style="background:#27ae60" onclick="applyPreset('27ae60','eafaf1')">💚 Green</button>
             <button class="preset-btn" style="background:#2c3e50" onclick="applyPreset('2c3e50','eaf0fb')">🖤 Navy</button>
-            <button class="preset-btn" style="background:#d4ac0d" onclick="applyPreset('d4ac0d','fef9e7')">✨ Gold</button>
+            <button class="preset-btn" style="background:#d4ac0d" onclick="applyPreset('d4ac0d','fef9e7')">🌟 Yellow</button>
           </div>
         </div>
         <button class="btn btn-primary" onclick="saveTheme()">💾 Save Theme</button>
@@ -505,7 +508,7 @@ body{font-family:var(--font)}
   </div>
   <div class="form-row">
     <div class="form-group"><label>Start Date</label><input type="date" id="e-hire"></div>
-    <div class="form-group"><label>End Date <span style="font-weight:400;color:#78909c">(leave blank if still working)</span></label><input type="date" id="e-end"></div>
+    <div class="form-group"><label>End Date <span style="font-weight:400;color:#8C7B6A">(leave blank if still working)</span></label><input type="date" id="e-end"></div>
   </div>
   <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
     <button class="btn btn-outline" onclick="closeM('emp-modal')">Cancel</button>
