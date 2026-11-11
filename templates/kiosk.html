@@ -9,10 +9,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:ital,wght@0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <link rel="manifest" href="/static/manifest.json">
-<meta name="theme-color" content="#1E1915">
+<meta name="theme-color" content="#0A1633">
 <style>
   :root{
     --primary:#{{ theme.primary }};
@@ -177,7 +177,7 @@ document.getElementById('emp-search').addEventListener('input', async e=>{
     `<div class="suggestion-item" onclick="selectEmp(${em.id},'${em.name.replace(/'/g,"\\'")}','${em.shift_start}','${em.shift_end}','${em.position||''}')">
       <strong>${em.name}</strong>
       <small>${em.position?em.position+' · ':''}${em.shift_start} – ${em.shift_end}</small>
-    </div>`).join('')||'<div style="padding:.9rem;color:#8C7B6A">No results</div>';
+    </div>`).join('')||'<div style="padding:.9rem;color:#64748B">No results</div>';
 });
 
 function selectEmp(id,name,ss,se,pos){

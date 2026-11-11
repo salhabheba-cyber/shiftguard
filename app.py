@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports, accounts
+import config, database, network_manager, reports, accounts, assistant
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -77,6 +77,10 @@ def load_user(uid):
     except Exception as e:
         logger.error(f'load_user failed: {e}')
         return None
+
+@app.context_processor
+def _template_globals():
+    return {'ai_enabled': assistant.enabled(), 'year': date.today().year}
 
 @app.before_request
 def bind_account():
@@ -1122,11 +1126,50 @@ def api_export(section, fmt):
         return jsonify({'error':str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
-# OWNER DASHBOARD (platform owner: every account)
+# AI ASSISTANT
 # ══════════════════════════════════════════════════════════════════════════════
+# Each message costs money, so limit how often one visitor or account can ask.
+_ai_hits = {}
+def _ai_allowed(key, limit, window=600):
+    now = datetime.now()
+    hits = [t for t in _ai_hits.get(key, []) if (now - t).total_seconds() < window]
+    if len(hits) >= limit:
+        _ai_hits[key] = hits
+        return False
+    hits.append(now); _ai_hits[key] = hits
+    return True
+
+@app.route('/api/assistant/status')
+def api_assistant_status():
+    return jsonify({'enabled': assistant.enabled()})
+
+@app.route('/api/assistant/public', methods=['POST'])
+def api_assistant_public():
+    if not assistant.enabled():
+        return _err('The AI assistant is not switched on yet.', 503)
+    if not _ai_allowed('ip:' + _client_ip(), 20):
+        return _err('You have sent a lot of messages. Please wait a few minutes.', 429)
+    text, err = assistant.reply_public((request.get_json(silent=True) or {}).get('messages'))
+    if err: return _err(err)
+    return _ok(reply=text)
+
+@app.route('/api/assistant/account', methods=['POST'])
+@api_login_required
+def api_assistant_account():
+    if not assistant.enabled():
+        return _err('The AI assistant is not switched on yet.', 503)
+    if not _ai_allowed(f"acc:{g.account['id']}", 60):
+        return _err('You have sent a lot of messages. Please wait a few minutes.', 429)
+    text, err = assistant.reply_account((request.get_json(silent=True) or {}).get('messages'), g.account['name'])
+    if err: return _err(err)
+    return _ok(reply=text)
+
 def _ok(**kw):  return jsonify(dict(success=True, **kw))
 def _err(msg, code=400): return jsonify({'success':False,'message':msg}), code
 
+# ══════════════════════════════════════════════════════════════════════════════
+# OWNER DASHBOARD (platform owner: every account)
+# ══════════════════════════════════════════════════════════════════════════════
 @app.route('/owner')
 @owner_required
 def owner_page():

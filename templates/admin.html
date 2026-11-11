@@ -8,8 +8,9 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:ital,wght@0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
+<link rel="stylesheet" href="/static/css/assistant.css">
 <style>
 :root{
   --primary:#{{ theme.primary }};--secondary:#{{ theme.secondary }};
@@ -101,7 +102,7 @@ body{font-family:var(--font)}
         <h3 class="card-title">📋 Today's Attendance — <span id="today-date">-</span></h3>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Branch</th><th>Check In</th><th>Photo</th><th>Check Out</th><th>Photo</th><th>Hours</th><th>Late</th><th>Status</th></tr></thead>
-          <tbody id="today-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#8C7B6A">Loading...</td></tr></tbody>
+          <tbody id="today-tbody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:#64748B">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -124,7 +125,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Branch</th><th>Date</th><th>Check In</th><th>In Photo</th><th>Check Out</th><th>Out Photo</th><th>Hours</th><th>Late</th><th>Status</th><th>Edit</th></tr></thead>
-          <tbody id="att-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#8C7B6A">Search above</td></tr></tbody>
+          <tbody id="att-tbody"><tr><td colspan="11" style="text-align:center;padding:2rem;color:#64748B">Search above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -146,7 +147,7 @@ body{font-family:var(--font)}
         </label>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Name</th><th>Position</th><th>Branch</th><th>Phone</th><th>Shift</th><th>Work Days</th><th>Salary</th><th>Start Date</th><th>End Date</th><th>Actions</th></tr></thead>
-          <tbody id="emp-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#8C7B6A">Loading...</td></tr></tbody>
+          <tbody id="emp-tbody"><tr><td colspan="10" style="text-align:center;padding:2rem;color:#64748B">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -172,10 +173,10 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">🏷️ Leave Types</h3>
           <button class="btn btn-primary btn-sm" onclick="openAddLeaveType()">➕ Add Leave Type</button>
         </div>
-        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Mark each leave type <strong>Paid</strong> or <strong>Unpaid</strong>. Paid leave days are paid in full and never reduce salary. Unpaid leave days are deducted exactly like an absence. Annual Leave and Sick Leave are pre-set — change them any time, or add your own types.</p>
+        <p style="color:#64748B;font-size:.85rem;margin-bottom:1rem">Mark each leave type <strong>Paid</strong> or <strong>Unpaid</strong>. Paid leave days are paid in full and never reduce salary. Unpaid leave days are deducted exactly like an absence. Annual Leave and Sick Leave are pre-set — change them any time, or add your own types.</p>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Leave Type</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="leave-type-tbody"><tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#8C7B6A">Loading...</td></tr></tbody>
+          <tbody id="leave-type-tbody"><tr><td colspan="3" style="text-align:center;padding:1.5rem;color:#64748B">Loading...</td></tr></tbody>
         </table></div>
       </div>
 
@@ -197,7 +198,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Employee</th><th>Leave Type</th><th>Start</th><th>End</th><th>Days</th><th>Paid?</th><th>Notes</th><th>Edit</th></tr></thead>
-          <tbody id="leave-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#8C7B6A">Search above</td></tr></tbody>
+          <tbody id="leave-tbody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:#64748B">Search above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -209,7 +210,7 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">📝 Monthly Notes</h3>
           <div class="form-group" style="margin:0"><input type="month" id="notes-month" onchange="loadNotes()"></div>
         </div>
-        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Keep a private note per employee for the selected month — performance, warnings, praise, anything worth remembering.</p>
+        <p style="color:#64748B;font-size:.85rem;margin-bottom:1rem">Keep a private note per employee for the selected month — performance, warnings, praise, anything worth remembering.</p>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem">
           <button class="btn btn-outline btn-sm" onclick="exportNotes('excel')">📊 Excel</button>
           <button class="btn btn-outline btn-sm" onclick="exportNotes('word')">📝 Word</button>
@@ -247,7 +248,7 @@ body{font-family:var(--font)}
         </div>
         <div class="tbl-wrap" style="margin-top:1rem"><table class="tbl">
           <thead><tr><th>Employee</th><th>Month</th><th>Type</th><th>Base/Rate</th><th>Present</th><th>Paid Leave</th><th>Unpaid Leave</th><th>Absent</th><th>Late Days</th><th>OT Hours</th><th>Deductions</th><th>Net Salary</th><th>Paid</th></tr></thead>
-          <tbody id="sal-hist-tbody"><tr><td colspan="13" style="text-align:center;color:#8C7B6A;padding:1.5rem">Enter year & month above</td></tr></tbody>
+          <tbody id="sal-hist-tbody"><tr><td colspan="13" style="text-align:center;color:#64748B;padding:1.5rem">Enter year & month above</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -274,11 +275,11 @@ body{font-family:var(--font)}
             </div>
           </div>
         </div>
-        <p style="color:#8C7B6A;font-size:.85rem">Monthly report includes: Attendance Summary, Salary Breakdown, Daily Log, Leave, and Monthly Notes.</p>
+        <p style="color:#64748B;font-size:.85rem">Monthly report includes: Attendance Summary, Salary Breakdown, Daily Log, Leave, and Monthly Notes.</p>
       </div>
       <div class="card">
         <h3 class="card-title">💾 Database Backup</h3>
-        <p style="color:#8C7B6A;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
+        <p style="color:#64748B;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
         <button class="btn btn-success" onclick="window.open('/api/admin/backup','_blank')">📥 Download Backup</button>
       </div>
     </div>
@@ -287,7 +288,7 @@ body{font-family:var(--font)}
     <div id="photos" class="tab-content">
       <div class="card">
         <h3 class="card-title">📸 Photo Management</h3>
-        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem" id="ph-autodelete-note"></p>
+        <p style="color:#64748B;font-size:.85rem;margin-bottom:1rem" id="ph-autodelete-note"></p>
         <div class="form-row" style="margin-bottom:1rem">
           <div class="form-group"><label>From</label><input type="date" id="ph-from"></div>
           <div class="form-group"><label>To</label><input type="date" id="ph-to"></div>
@@ -323,10 +324,10 @@ body{font-family:var(--font)}
           <h3 class="card-title" style="margin:0">📱 Devices on This WiFi</h3>
           <button class="btn btn-primary" onclick="scanNetwork()">🔄 Scan Network</button>
         </div>
-        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Shows all phones and computers connected to the same WiFi as this computer.</p>
+        <p style="color:#64748B;font-size:.85rem;margin-bottom:1rem">Shows all phones and computers connected to the same WiFi as this computer.</p>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>IP Address</th><th>MAC Address</th><th>Hostname / Device</th><th>Type</th></tr></thead>
-          <tbody id="devices-tbody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#8C7B6A">Click "Scan Network" to see connected devices</td></tr></tbody>
+          <tbody id="devices-tbody"><tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#64748B">Click "Scan Network" to see connected devices</td></tr></tbody>
         </table></div>
       </div>
 
@@ -388,7 +389,7 @@ body{font-family:var(--font)}
         <button class="btn btn-dark btn-sm" onclick="loadLogs()" style="margin-bottom:1rem">🔄 Refresh</button>
         <div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Time</th><th>Event</th><th>User</th><th>IP</th><th>Details</th></tr></thead>
-          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;color:#8C7B6A;padding:1.5rem">Click Refresh</td></tr></tbody>
+          <tbody id="logs-tbody"><tr><td colspan="5" style="text-align:center;color:#64748B;padding:1.5rem">Click Refresh</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -397,7 +398,7 @@ body{font-family:var(--font)}
     <div id="settings" class="tab-content">
       <div class="card">
         <h3 class="card-title">📷 Photo Auto-Delete</h3>
-        <p style="color:#8C7B6A;font-size:.85rem;margin-bottom:1rem">Check-in/out photos take up storage over time. Turn this on to automatically delete photos older than the retention period below — the default of 30 days means each month's photos disappear on their own.</p>
+        <p style="color:#64748B;font-size:.85rem;margin-bottom:1rem">Check-in/out photos take up storage over time. Turn this on to automatically delete photos older than the retention period below — the default of 30 days means each month's photos disappear on their own.</p>
         <div class="form-row">
           <div class="form-group"><label>Auto-Delete</label>
             <select id="ph-auto-enabled"><option value="1">✅ Enabled</option><option value="0">🚫 Disabled</option></select>
@@ -409,7 +410,7 @@ body{font-family:var(--font)}
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="savePhotoSettings()">💾 Save</button>
           <button class="btn btn-danger" onclick="purgePhotosNow()">🧹 Run Cleanup Now</button>
-          <span id="ph-last-purge" style="font-size:.8rem;color:#8C7B6A"></span>
+          <span id="ph-last-purge" style="font-size:.8rem;color:#64748B"></span>
         </div>
       </div>
 
@@ -419,19 +420,19 @@ body{font-family:var(--font)}
           <div class="form-group"><label>Primary Color</label>
             <div class="color-row">
               <input type="color" id="th-p" value="#{{ theme.primary }}" oninput="document.getElementById('th-p-hex').value=this.value.replace('#','')">
-              <input type="text" id="th-p-hex" placeholder="B8864E" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
+              <input type="text" id="th-p-hex" placeholder="FF6A00" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
             </div>
           </div>
           <div class="form-group"><label>Secondary / Background</label>
             <div class="color-row">
               <input type="color" id="th-s" value="#{{ theme.secondary }}" oninput="document.getElementById('th-s-hex').value=this.value.replace('#','')">
-              <input type="text" id="th-s-hex" placeholder="F3ECE2" oninput="if(this.value.length===6)document.getElementById('th-s').value='#'+this.value">
+              <input type="text" id="th-s-hex" placeholder="EEF3FB" oninput="if(this.value.length===6)document.getElementById('th-s').value='#'+this.value">
             </div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Font Family</label>
-            <select id="th-font"><option>Segoe UI</option><option>Arial</option><option>Poppins</option><option>Roboto</option><option>Verdana</option><option>Georgia</option></select>
+            <select id="th-font"><option>Inter</option><option>Segoe UI</option><option>Arial</option><option>Poppins</option><option>Roboto</option><option>Verdana</option><option>Georgia</option></select>
           </div>
           <div class="form-group"><label>App Name</label>
             <input type="text" id="th-name" placeholder="ShiftGuard">
@@ -443,6 +444,7 @@ body{font-family:var(--font)}
         <div style="margin-bottom:1rem">
           <strong style="font-size:.88rem">Quick Color Presets:</strong>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+            <button class="preset-btn" style="background:linear-gradient(135deg,#FFA24A,#FF6A00)" onclick="applyPreset('FF6A00','EEF3FB')">🔶 ShiftGuard Orange</button>
             <button class="preset-btn" style="background:linear-gradient(135deg,#F3D3A6,#B8864E);color:#1E1915" onclick="applyPreset('B8864E','F3ECE2')">✨ Luxe Gold</button>
             <button class="preset-btn" style="background:#00A8A8" onclick="applyPreset('00A8A8','E8F8F8')">🌊 Teal</button>
             <button class="preset-btn" style="background:#8e44ad" onclick="applyPreset('8e44ad','f5eef8')">💜 Purple</button>
@@ -457,7 +459,7 @@ body{font-family:var(--font)}
 
       <div class="card">
         <h3 class="card-title">✉️ Sign-in Email</h3>
-        <p style="font-size:.85rem;color:#8C7B6A;margin-bottom:.9rem">Use this email with your password to sign in on the ShiftGuard home page. You can still sign in with your username <strong>{{ user.username }}</strong>.</p>
+        <p style="font-size:.85rem;color:#64748B;margin-bottom:.9rem">Use this email with your password to sign in on the ShiftGuard home page. You can still sign in with your username <strong>{{ user.username }}</strong>.</p>
         <div class="form-group" style="max-width:420px"><label>Email</label><input type="email" id="acct-email" placeholder="you@company.com" autocomplete="email"></div>
         <button class="btn btn-primary" onclick="saveAccountEmail()">💾 Save Email</button>
       </div>
@@ -524,7 +526,7 @@ body{font-family:var(--font)}
   </div>
   <div class="form-row">
     <div class="form-group"><label>Start Date</label><input type="date" id="e-hire"></div>
-    <div class="form-group"><label>End Date <span style="font-weight:400;color:#8C7B6A">(leave blank if still working)</span></label><input type="date" id="e-end"></div>
+    <div class="form-group"><label>End Date <span style="font-weight:400;color:#64748B">(leave blank if still working)</span></label><input type="date" id="e-end"></div>
   </div>
   <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem">
     <button class="btn btn-outline" onclick="closeM('emp-modal')">Cancel</button>
@@ -667,5 +669,11 @@ body{font-family:var(--font)}
 
 <script>var CURRENT_USER={{ user.username|tojson }};</script>
 <script src="/static/js/admin.js"></script>
+{% if ai_enabled %}
+<script src="/static/js/assistant.js" data-endpoint="/api/assistant/account" data-title="ShiftGuard AI"
+  data-subtitle="{{ account.name }} · reads your data, never changes it"
+  data-greeting="Hi! Ask me about your team: who's in today, who was late, hours worked, leave or salaries."
+  data-suggestions="Who is in today?|Who was late this week?|Estimate this month's payroll|Who is on leave this month?"></script>
+{% endif %}
 </body>
 </html>

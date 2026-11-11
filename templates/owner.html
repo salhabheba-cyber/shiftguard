@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>ShiftGuard — Owner</title>
-<meta name="theme-color" content="#1E1915">
+<meta name="theme-color" content="#0A1633">
 <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:ital,wght@0,600;0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <style>
-.owner-tag{display:inline-block;margin-top:.35rem;padding:.15rem .6rem;border-radius:20px;font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1E1915;background:var(--gold-grad)}
+.owner-tag{display:inline-block;margin-top:.35rem;padding:.15rem .6rem;border-radius:20px;font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fff;background:var(--brand-grad)}
 .toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
 .toolbar input,.toolbar select{padding:.55rem .8rem;border:1px solid var(--border);border-radius:10px;background:var(--glass-strong);font-size:.88rem;color:var(--text);outline:none}
 .toolbar input{flex:1;min-width:180px}
@@ -22,16 +22,16 @@
 .b-pending{background:#F6E6C8;color:#7A5418}
 .empty{text-align:center;color:var(--muted);padding:1.6rem}
 .req-card{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.1rem;border-radius:14px;background:rgba(255,255,255,.55);border:1px solid var(--glass-border);margin-bottom:.7rem;flex-wrap:wrap}
-.req-card h4{font-family:var(--serif);font-size:1.3rem;color:var(--dark)}
+.req-card h4{font-family:var(--display);font-size:1.1rem;font-weight:700;color:var(--dark)}
 .req-meta{font-size:.82rem;color:var(--muted);margin-top:.15rem}
-.nav-count{margin-left:auto;background:var(--accent);color:#1E1915;font-size:.68rem;font-weight:800;border-radius:20px;padding:.05rem .45rem}
+.nav-count{margin-left:auto;background:var(--primary);color:#fff;font-size:.68rem;font-weight:800;border-radius:20px;padding:.05rem .45rem}
 .kv{display:grid;grid-template-columns:140px 1fr;gap:.45rem .8rem;font-size:.88rem;margin-bottom:1rem}
 .kv dt{color:var(--muted)}
 .kv dd{color:var(--dark);font-weight:600;word-break:break-word}
 .banner{display:none;padding:.9rem 1.1rem;border-radius:12px;margin-bottom:1rem;background:#F6E6C8;border:1px solid #E8D2A6;color:#6B4A14;font-size:.9rem}
 .banner.show{display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;z-index:3000;padding:.8rem 1.2rem;border-radius:12px;
-  background:#1E1915;color:#F5EDE3;border:1px solid rgba(212,162,106,.5);box-shadow:0 16px 40px -14px rgba(0,0,0,.6);transition:.3s;font-size:.9rem;max-width:calc(100vw - 32px)}
+  background:#0A1633;color:#fff;border:1px solid rgba(59,130,246,.5);box-shadow:0 16px 40px -14px rgba(0,0,0,.6);transition:.3s;font-size:.9rem;max-width:calc(100vw - 32px)}
 .toast.show{opacity:1;transform:translateX(-50%)}
 .toast.err{background:#7E2E20;border-color:#B5523F}
 @media(max-width:768px){.kv{grid-template-columns:1fr}.kv dt{margin-top:.4rem}.owner-tag{display:none}}
@@ -43,7 +43,7 @@
 <aside class="sidebar">
   <div class="sidebar-brand">
     <img src="/static/images/brand/shiftguard-mark.svg" class="sb-logo" alt="">
-    <h2>ShiftGuard</h2>
+    <h2>Shift<span style="color:var(--primary)">Guard</span></h2>
     <span class="owner-tag">Owner</span>
   </div>
   <nav>
@@ -186,7 +186,7 @@
 <div id="m-detail" class="modal"><div class="modal-box lg">
   <div class="modal-head"><h3 id="d-title">Account</h3><button class="modal-close" onclick="closeM('m-detail')" aria-label="Close">&times;</button></div>
   <dl class="kv" id="d-kv"></dl>
-  <h4 style="font-family:var(--serif);font-size:1.25rem;margin:.6rem 0 .5rem">Edit details</h4>
+  <h4 style="font-family:var(--display);font-size:1.05rem;margin:.6rem 0 .5rem">Edit details</h4>
   <input type="hidden" id="d-id">
   <div class="form-row">
     <div class="form-group"><label for="d-business">Business name</label><input id="d-business" type="text"></div>
@@ -198,7 +198,7 @@
   </div>
   <div class="form-group"><label for="d-notes">Private notes</label><textarea id="d-notes" rows="2" placeholder="Only you can see these"></textarea></div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button class="btn btn-primary btn-sm" onclick="saveDetail()">💾 Save details</button></div>
-  <h4 style="font-family:var(--serif);font-size:1.25rem;margin:.6rem 0 .5rem">Admin users</h4>
+  <h4 style="font-family:var(--display);font-size:1.05rem;margin:.6rem 0 .5rem">Admin users</h4>
   <div class="tbl-wrap"><table class="tbl">
     <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Last login</th><th></th></tr></thead>
     <tbody id="d-admins"></tbody>

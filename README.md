@@ -53,7 +53,17 @@ Deploy to Render, Railway, or PythonAnywhere:
    - `SECRET_KEY`: a long random string (if missing, one is generated and stored in `data/`)
    - `OWNER_EMAIL` / `OWNER_PASSWORD`: your owner login (only used the first time the app starts)
    - `LEGACY_ACCOUNT_NAME`: name for the first business account (default `MySpa`)
+   - `ANTHROPIC_API_KEY`: turns on the ShiftGuard AI assistant (home page and every account's dashboard). Without it the assistant is hidden. Optional `AI_MODEL` (default `claude-opus-5-5`)
 6. Keep the `data/` folder on persistent storage (e.g. a Railway volume) so accounts survive redeploys
+
+## AI Assistant
+
+ShiftGuard AI runs on Claude:
+
+- **Home page:** answers visitors' questions about ShiftGuard (max 20 messages per visitor every 10 minutes).
+- **Inside each account:** answers questions about that business's own attendance, staff, leave and payroll using read-only lookups. It can never change data or see another business (max 60 messages per account every 10 minutes).
+
+Set `ANTHROPIC_API_KEY` to switch it on.
 
 ## Accounts
 

@@ -7,3 +7,4 @@ openpyxl
 python-docx
 fpdf2
 gunicorn
+anthropic>=2.8.0
