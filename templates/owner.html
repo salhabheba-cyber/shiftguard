@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ShiftGuard — Owner</title>
+<meta name="theme-color" content="#1E1915">
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+.owner-tag{display:inline-block;margin-top:.35rem;padding:.15rem .6rem;border-radius:20px;font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1E1915;background:var(--gold-grad)}
+.toolbar{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.toolbar input,.toolbar select{padding:.55rem .8rem;border:1px solid var(--border);border-radius:10px;background:var(--glass-strong);font-size:.88rem;color:var(--text);outline:none}
+.toolbar input{flex:1;min-width:180px}
+.toolbar input:focus,.toolbar select:focus{border-color:var(--primary);box-shadow:var(--ring)}
+.acc-name{font-weight:700;color:var(--dark)}
+.acc-sub{font-size:.75rem;color:var(--muted)}
+.actions{display:flex;gap:.3rem;flex-wrap:wrap}
+.b-pending{background:#F6E6C8;color:#7A5418}
+.empty{text-align:center;color:var(--muted);padding:1.6rem}
+.req-card{display:flex;justify-content:space-between;gap:1rem;align-items:center;padding:1rem 1.1rem;border-radius:14px;background:rgba(255,255,255,.55);border:1px solid var(--glass-border);margin-bottom:.7rem;flex-wrap:wrap}
+.req-card h4{font-family:var(--serif);font-size:1.3rem;color:var(--dark)}
+.req-meta{font-size:.82rem;color:var(--muted);margin-top:.15rem}
+.nav-count{margin-left:auto;background:var(--accent);color:#1E1915;font-size:.68rem;font-weight:800;border-radius:20px;padding:.05rem .45rem}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:.45rem .8rem;font-size:.88rem;margin-bottom:1rem}
+.kv dt{color:var(--muted)}
+.kv dd{color:var(--dark);font-weight:600;word-break:break-word}
+.banner{display:none;padding:.9rem 1.1rem;border-radius:12px;margin-bottom:1rem;background:#F6E6C8;border:1px solid #E8D2A6;color:#6B4A14;font-size:.9rem}
+.banner.show{display:flex;gap:.8rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;z-index:3000;padding:.8rem 1.2rem;border-radius:12px;
+  background:#1E1915;color:#F5EDE3;border:1px solid rgba(212,162,106,.5);box-shadow:0 16px 40px -14px rgba(0,0,0,.6);transition:.3s;font-size:.9rem;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.err{background:#7E2E20;border-color:#B5523F}
+@media(max-width:768px){.kv{grid-template-columns:1fr}.kv dt{margin-top:.4rem}.owner-tag{display:none}}
+</style>
+</head>
+<body>
+<div class="admin-wrap">
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <img src="/static/images/brand/shiftguard-mark.svg" class="sb-logo" alt="">
+    <h2>ShiftGuard</h2>
+    <span class="owner-tag">Owner</span>
+  </div>
+  <nav>
+    <div class="sb-section">
+      <div class="sb-label">Platform</div>
+      <a href="#" class="nav-link active" data-tab="overview">📈 <span>Overview</span></a>
+      <a href="#" class="nav-link" data-tab="accounts">🏢 <span>Accounts</span></a>
+      <a href="#" class="nav-link" data-tab="requests">📨 <span>Requests</span><span class="nav-count" id="req-count" hidden>0</span></a>
+      <a href="#" class="nav-link" data-tab="activity">🕘 <span>Activity</span></a>
+    </div>
+    <div class="sb-section">
+      <div class="sb-label">You</div>
+      <a href="#" class="nav-link" data-tab="settings">⚙️ <span>Settings</span></a>
+      <a href="/" class="nav-link">🏠 <span>Home page</span></a>
+    </div>
+  </nav>
+</aside>
+
+<main class="admin-main">
+  <div class="topbar">
+    <h1><img src="/static/images/brand/shiftguard-mark.svg" alt="">Owner Dashboard</h1>
+    <div class="topbar-right">
+      <span>👤 <span id="owner-name">{{ owner.name }}</span></span>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="page-content">
+    <div class="banner" id="pw-banner">
+      <span>🔐 You're still using the default owner password. Change it now so nobody else can sign in as owner.</span>
+      <button class="btn btn-dark btn-sm" onclick="showTab('settings')">Change password</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-content active" id="tab-overview">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sico">🏢</div><div class="sval" id="t-accounts">–</div><div class="slbl">Accounts</div></div>
+        <div class="stat-box"><div class="sico">✅</div><div class="sval" id="t-active">–</div><div class="slbl">Active</div></div>
+        <div class="stat-box"><div class="sico">📨</div><div class="sval" id="t-pending">–</div><div class="slbl">Waiting approval</div></div>
+        <div class="stat-box"><div class="sico">👥</div><div class="sval" id="t-employees">–</div><div class="slbl">Employees</div></div>
+        <div class="stat-box"><div class="sico">🕒</div><div class="sval" id="t-today">–</div><div class="slbl">Check-ins today</div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:.6rem;flex-wrap:wrap">
+          <h3 class="card-title" style="margin:0;border:none;padding:0">🏢 Accounts at a glance</h3>
+          <button class="btn btn-primary btn-sm" onclick="openCreate()">➕ New Account</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Business</th><th>Status</th><th>Employees</th><th>In now</th><th>Today</th><th>Last activity</th></tr></thead>
+          <tbody id="ov-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">🕘 Recent activity</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>When</th><th>Event</th><th>Who</th><th>Account</th></tr></thead>
+          <tbody id="ov-log"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNTS -->
+    <div class="tab-content" id="tab-accounts">
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="acc-search" placeholder="Search by business, contact or email…" oninput="renderAccounts()">
+          <select id="acc-filter" onchange="renderAccounts()">
+            <option value="">All statuses</option><option value="active">Active</option>
+            <option value="suspended">Suspended</option><option value="pending">Pending</option><option value="rejected">Rejected</option>
+          </select>
+          <button class="btn btn-primary" onclick="openCreate()">➕ New Account</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Business</th><th>Contact</th><th>Sign-in email</th><th>Status</th><th>Employees</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="acc-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- REQUESTS -->
+    <div class="tab-content" id="tab-requests">
+      <div class="card">
+        <h3 class="card-title">📨 Sign-up requests</h3>
+        <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">Businesses that asked for an account on the home page. Approving creates their account; they sign in with the email and password they chose.</p>
+        <div id="req-list"></div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY -->
+    <div class="tab-content" id="tab-activity">
+      <div class="card">
+        <h3 class="card-title">🕘 Platform activity</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>When</th><th>Event</th><th>Who</th><th>Account</th><th>IP</th><th>Details</th></tr></thead>
+          <tbody id="log-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-content" id="tab-settings">
+      <div class="card" style="max-width:640px">
+        <h3 class="card-title">👤 Owner sign-in</h3>
+        <div class="form-row">
+          <div class="form-group"><label for="o-name">Name</label><input id="o-name" type="text"></div>
+          <div class="form-group"><label for="o-email">Email</label><input id="o-email" type="email" autocomplete="username"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="o-new">New password <span style="font-weight:400;color:var(--muted)">(leave blank to keep)</span></label><input id="o-new" type="password" autocomplete="new-password"></div>
+          <div class="form-group"><label for="o-cfm">Confirm new password</label><input id="o-cfm" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="form-group" style="max-width:300px"><label for="o-cur">Current password *</label><input id="o-cur" type="password" autocomplete="current-password"></div>
+        <button class="btn btn-primary" onclick="saveProfile()">💾 Save</button>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- Create account -->
+<div id="m-create" class="modal"><div class="modal-box">
+  <div class="modal-head"><h3>➕ New Account</h3><button class="modal-close" onclick="closeM('m-create')" aria-label="Close">&times;</button></div>
+  <div class="form-group"><label for="c-business">Business name *</label><input id="c-business" type="text" placeholder="e.g. Glow Beauty Salon"></div>
+  <div class="form-row">
+    <div class="form-group"><label for="c-name">Contact name</label><input id="c-name" type="text"></div>
+    <div class="form-group"><label for="c-phone">Phone</label><input id="c-phone" type="tel"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label for="c-email">Sign-in email *</label><input id="c-email" type="email"></div>
+    <div class="form-group"><label for="c-pw">Password * (min 8)</label><input id="c-pw" type="text" autocomplete="off"></div>
+  </div>
+  <p style="font-size:.8rem;color:var(--muted);margin:-.2rem 0 1rem">The business signs in on the home page with this email and password. Their admin username is <strong>admin</strong>.</p>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+    <button class="btn btn-outline" onclick="closeM('m-create')">Cancel</button>
+    <button class="btn btn-primary" onclick="createAccount()">Create account</button>
+  </div>
+</div></div>
+
+<!-- Account details -->
+<div id="m-detail" class="modal"><div class="modal-box lg">
+  <div class="modal-head"><h3 id="d-title">Account</h3><button class="modal-close" onclick="closeM('m-detail')" aria-label="Close">&times;</button></div>
+  <dl class="kv" id="d-kv"></dl>
+  <h4 style="font-family:var(--serif);font-size:1.25rem;margin:.6rem 0 .5rem">Edit details</h4>
+  <input type="hidden" id="d-id">
+  <div class="form-row">
+    <div class="form-group"><label for="d-business">Business name</label><input id="d-business" type="text"></div>
+    <div class="form-group"><label for="d-name">Contact name</label><input id="d-name" type="text"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label for="d-email">Contact email</label><input id="d-email" type="email"></div>
+    <div class="form-group"><label for="d-phone">Phone</label><input id="d-phone" type="tel"></div>
+  </div>
+  <div class="form-group"><label for="d-notes">Private notes</label><textarea id="d-notes" rows="2" placeholder="Only you can see these"></textarea></div>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button class="btn btn-primary btn-sm" onclick="saveDetail()">💾 Save details</button></div>
+  <h4 style="font-family:var(--serif);font-size:1.25rem;margin:.6rem 0 .5rem">Admin users</h4>
+  <div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Last login</th><th></th></tr></thead>
+    <tbody id="d-admins"></tbody>
+  </table></div>
+  <div style="border-top:1px solid var(--border);margin-top:1.2rem;padding-top:1rem">
+    <h4 style="color:var(--danger);font-size:.95rem;margin-bottom:.4rem">Delete account</h4>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">Removes the account and its sign-in. Its data is moved to the server's archive folder, not destroyed. Type the business name to confirm.</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input id="d-confirm" type="text" style="flex:1;min-width:180px;padding:.55rem .8rem;border:1px solid var(--border);border-radius:10px">
+    <button class="btn btn-danger" onclick="deleteAccount()">Delete</button></div>
+  </div>
+</div></div>
+
+<!-- Reset password -->
+<div id="m-reset" class="modal"><div class="modal-box sm">
+  <div class="modal-head"><h3>🔑 Reset password</h3><button class="modal-close" onclick="closeM('m-reset')" aria-label="Close">&times;</button></div>
+  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">New password for <strong id="r-user"></strong> at <strong id="r-acc"></strong>.</p>
+  <div class="form-group"><label for="r-pw">New password (min 8)</label><input id="r-pw" type="text" autocomplete="off"></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end">
+    <button class="btn btn-outline" onclick="closeM('m-reset')">Cancel</button>
+    <button class="btn btn-primary" onclick="doReset()">Reset</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/js/owner.js"></script>
+</body>
+</html>

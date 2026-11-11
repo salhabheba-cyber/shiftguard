@@ -1,12 +1,12 @@
 """ShiftGuard — Main Flask Application"""
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, g, session
 from flask_cors import CORS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports
+import config, database, network_manager, reports, accounts
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -35,24 +35,112 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login_page'
 
 class AdminUser(UserMixin):
+    """An admin of one business account."""
+    is_owner = False
+    def __init__(self, d, account):
+        self.username   = d['username']
+        self.role       = d.get('role','admin')
+        self.branch_id  = d.get('branch_id')
+        self.email      = d.get('email')
+        self.account_id = account['id']
+        self.id         = f"a:{account['id']}:{d['username']}"
+
+class OwnerUser(UserMixin):
+    """The platform owner: sees and manages every account."""
+    is_owner = True
+    role     = 'owner'
     def __init__(self, d):
-        self.id        = d['username']
-        self.username  = d['username']
-        self.role      = d.get('role','admin')
-        self.branch_id = d.get('branch_id')
+        self.owner_id    = d['id']
+        self.email       = d['email']
+        self.name        = d.get('name') or 'Owner'
+        self.must_change = bool(d.get('must_change'))
+        self.username    = d['email']
+        self.id          = f"o:{d['id']}"
 
 @login_manager.user_loader
-def load_user(username):
-    d = database.get_admin(username)
-    return AdminUser(d) if d else None
+def load_user(uid):
+    try:
+        if uid.startswith('o:'):
+            d = accounts.get_owner(int(uid[2:]))
+            return OwnerUser(d) if d else None
+        if uid.startswith('a:'):
+            _, aid, username = uid.split(':', 2)
+            acc = accounts.get_account(int(aid))
+        else:
+            # Sessions from before accounts existed belong to the original business.
+            acc, username = accounts.get_account(accounts.first_account_id()), uid
+        if not acc or acc['status'] != 'active' or not acc['db_file']:
+            return None
+        with database.using(accounts.db_path(acc)):
+            d = database.get_admin(username)
+        return AdminUser(d, acc) if d else None
+    except Exception as e:
+        logger.error(f'load_user failed: {e}')
+        return None
+
+@app.before_request
+def bind_account():
+    """Point the database layer at the signed-in account's own data."""
+    g.account = None
+    if not current_user.is_authenticated:
+        return
+    if current_user.is_owner:
+        aid = session.get('acting_account')
+        acc = accounts.get_account(aid) if aid else None
+        if acc and (not acc['db_file'] or acc['status'] not in ('active', 'suspended')):
+            session.pop('acting_account', None); acc = None
+    else:
+        acc = accounts.get_account(current_user.account_id)
+    if acc:
+        g.account = acc
+        g.sg_db_path = accounts.db_path(acc)
+
+def _needs_account():
+    """Response to send when no account is selected (owner not viewing one)."""
+    if request.path.startswith('/api/'):
+        return jsonify({'success':False,'message':'Open an account from the owner dashboard first'}), 409
+    return redirect(url_for('owner_page'))
 
 def api_login_required(f):
     @wraps(f)
     def dec(*a, **kw):
         if not current_user.is_authenticated:
             return jsonify({'success':False,'message':'Login required'}), 401
+        if g.get('account') is None:
+            return _needs_account()
         return f(*a, **kw)
     return dec
+
+def account_required(f):
+    """For pages: signed in and an account selected."""
+    @wraps(f)
+    @login_required
+    def dec(*a, **kw):
+        if g.get('account') is None:
+            return _needs_account()
+        return f(*a, **kw)
+    return dec
+
+def owner_required(f):
+    @wraps(f)
+    def dec(*a, **kw):
+        if not current_user.is_authenticated or not current_user.is_owner:
+            if request.path.startswith('/api/'):
+                return jsonify({'success':False,'message':'Owner sign-in required'}), 401
+            return redirect(url_for('home', signin=1))
+        return f(*a, **kw)
+    return dec
+
+# Simple sign-in throttle: at most 10 failed attempts per IP in 15 minutes.
+_failed_logins = {}
+def _too_many_failures(ip):
+    now = datetime.now()
+    recent = [t for t in _failed_logins.get(ip, []) if (now - t).total_seconds() < 900]
+    _failed_logins[ip] = recent
+    return len(recent) >= 10
+
+def _record_failure(ip):
+    _failed_logins.setdefault(ip, []).append(datetime.now())
 
 # ── SECURITY HEADERS ──────────────────────────────────────────────────────────
 @app.after_request
@@ -64,10 +152,7 @@ def sec_headers(r):
 
 # ── INIT ──────────────────────────────────────────────────────────────────────
 with app.app_context():
-    database.init_db()
-    if not database.get_admin('admin'):
-        database.create_admin('admin','admin123',role='superadmin')
-        logger.warning("Default admin created: admin / admin123")
+    accounts.init_platform()
 
 # ── PHOTO HELPER ──────────────────────────────────────────────────────────────
 def save_photo(b64, emp_name, action):
@@ -76,7 +161,8 @@ def save_photo(b64, emp_name, action):
         data   = base64.b64decode(b64)
         now    = datetime.now()
         safe   = re.sub(r'[^a-zA-Z0-9_]','_', emp_name)
-        folder = os.path.join(config.PHOTOS_DIR, str(now.year), f'{now.month:02d}', f'{now.day:02d}')
+        base   = os.path.join(config.BASE_DIR, 'static', g.account['photo_dir'])
+        folder = os.path.join(base, str(now.year), f'{now.month:02d}', f'{now.day:02d}')
         os.makedirs(folder, exist_ok=True)
         fname  = f"{safe}_{action}_{now.strftime('%H%M%S')}.jpg"
         fpath  = os.path.join(folder, fname)
@@ -135,11 +221,22 @@ def _client_ip():
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route('/')
 def home():
-    return render_template('landing.html', theme=database.get_theme(),
-                           user=current_user if current_user.is_authenticated else None)
+    user = current_user if current_user.is_authenticated else None
+    return render_template('landing.html', theme=dict(config.DEFAULT_THEME), user=user,
+                           account=g.get('account'))
+
+@app.route('/api/signup', methods=['POST'])
+def api_signup():
+    d = request.get_json(silent=True) or {}
+    if d.get('website'):  # hidden field only bots fill in
+        return jsonify({'success':True})
+    aid, err = accounts.request_signup(d.get('business',''), d.get('name',''), d.get('email',''),
+                                       d.get('phone',''), d.get('password',''), _client_ip())
+    if err: return jsonify({'success':False,'message':err}), 400
+    return jsonify({'success':True,'message':"Thanks! Your request has been received. You can sign in as soon as it's approved."})
 
 @app.route('/kiosk')
-@login_required
+@account_required
 def kiosk():
     theme    = database.get_theme()
     branches = database.get_branches()
@@ -163,7 +260,7 @@ def kiosk_search():
 @app.route('/api/kiosk/checkin', methods=['POST'])
 @api_login_required
 def kiosk_checkin():
-    d    = request.json or {}
+    d    = request.get_json(silent=True) or {}
     eid  = d.get('employee_id')
     pin  = str(d.get('pin','')).strip()
     if not eid or not pin:
@@ -184,7 +281,7 @@ def kiosk_checkin():
 @app.route('/api/kiosk/checkout', methods=['POST'])
 @api_login_required
 def kiosk_checkout():
-    d    = request.json or {}
+    d    = request.get_json(silent=True) or {}
     eid  = d.get('employee_id')
     pin  = str(d.get('pin','')).strip()
     if not eid or not pin:
@@ -219,20 +316,34 @@ def login_page():
 
 @app.route('/admin/login', methods=['POST'])
 def login_post():
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
+    ip    = _client_ip()
     login = (d.get('email') or d.get('username') or '').strip()
-    user  = database.verify_admin(login, d.get('password',''))
-    if not user:
-        database.log_event('login_fail', login, _client_ip(), 'Wrong password')
-        return jsonify({'success':False,'message':'Invalid email or password'}), 401
-    login_user(AdminUser(user), remember=True)
-    database.log_event('login_ok', user['username'], _client_ip(), '')
-    return jsonify({'success':True,'username':user['username']})
+    if _too_many_failures(ip):
+        return jsonify({'success':False,'message':'Too many attempts. Please wait 15 minutes and try again.'}), 429
+    kind, rec, acc, err = accounts.authenticate(login, d.get('password',''))
+    if not kind:
+        _record_failure(ip)
+        accounts.log('login_fail', login, None, ip, err)
+        return jsonify({'success':False,'message':err}), 401
+    session.pop('acting_account', None)
+    if kind == 'owner':
+        login_user(OwnerUser(rec), remember=True)
+        accounts.log('owner_login', rec['email'], None, ip)
+        return jsonify({'success':True,'kind':'owner','username':rec.get('name') or 'Owner',
+                        'must_change':bool(rec.get('must_change'))})
+    login_user(AdminUser(rec, acc), remember=True)
+    accounts.log('login_ok', rec['username'], acc['id'], ip)
+    with database.using(accounts.db_path(acc)):
+        database.log_event('login_ok', rec['username'], ip, '')
+    return jsonify({'success':True,'kind':'account','username':rec['username'],'account':acc['name']})
 
 @app.route('/admin/logout', methods=['POST'])
 @login_required
 def logout():
-    database.log_event('logout', current_user.username, _client_ip(), '')
+    if g.get('account') is not None and not current_user.is_owner:
+        database.log_event('logout', current_user.username, _client_ip(), '')
+    session.pop('acting_account', None)
     logout_user()
     return jsonify({'success':True})
 
@@ -240,10 +351,10 @@ def logout():
 # ADMIN DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route('/admin')
-@login_required
+@account_required
 def admin():
     return render_template('admin.html', theme=database.get_theme(),
-                           branches=database.get_branches(), user=current_user)
+                           branches=database.get_branches(), user=current_user, account=g.account)
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
 @app.route('/api/admin/dashboard')
@@ -312,7 +423,7 @@ def api_attendance():
 @app.route('/api/admin/attendance/<int:rid>', methods=['PUT'])
 @api_login_required
 def api_edit_att(rid):
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     database.admin_edit_attendance(rid, d.get('check_in') or None,
                                    d.get('check_out') or None, d.get('notes'),
                                    current_user.username)
@@ -327,7 +438,7 @@ def api_del_att(rid):
 @app.route('/api/admin/attendance/add', methods=['POST'])
 @api_login_required
 def api_add_att():
-    d  = request.json or {}
+    d  = request.get_json(silent=True) or {}
     ok = database.admin_add_attendance(d.get('employee_id'), d.get('date'),
                                        d.get('check_in'), d.get('check_out'), d.get('notes'))
     return jsonify({'success':ok})
@@ -335,7 +446,7 @@ def api_add_att():
 @app.route('/api/admin/attendance/<int:rid>/delete-photo', methods=['POST'])
 @api_login_required
 def api_del_photo(rid):
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
     field = d.get('field','check_in_photo')
     r     = database.q('SELECT * FROM attendance WHERE id=?',(rid,))
     if r and r[0].get(field):
@@ -369,7 +480,7 @@ def api_employees():
 @app.route('/api/admin/employees', methods=['POST'])
 @api_login_required
 def api_add_emp():
-    d    = request.json or {}
+    d    = request.get_json(silent=True) or {}
     name = (d.get('name') or '').strip()
     pin  = str(d.get('pin','')).strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
@@ -395,7 +506,7 @@ def api_add_emp():
 @app.route('/api/admin/employees/<int:eid>', methods=['PUT'])
 @api_login_required
 def api_upd_emp(eid):
-    d  = request.json or {}
+    d  = request.get_json(silent=True) or {}
     kw = {}
     for f in ['name','position','phone','branch_id','shift_start','shift_end',
               'working_days','salary_type','salary_amount','hire_date','end_date','is_active']:
@@ -416,7 +527,7 @@ def api_upd_emp(eid):
 @app.route('/api/admin/employees/<int:eid>/reset-pin', methods=['POST'])
 @api_login_required
 def api_reset_pin(eid):
-    d   = request.json or {}
+    d   = request.get_json(silent=True) or {}
     pin = str(d.get('pin','')).strip()
     if len(pin)!=4 or not pin.isdigit():
         return jsonify({'success':False,'message':'PIN must be 4 digits'}), 400
@@ -439,7 +550,7 @@ def api_branches():
 @app.route('/api/admin/branches', methods=['POST'])
 @api_login_required
 def api_add_branch():
-    d    = request.json or {}
+    d    = request.get_json(silent=True) or {}
     name = (d.get('name') or '').strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
     bid  = database.add_branch(name, d.get('address'), d.get('phone'))
@@ -448,7 +559,7 @@ def api_add_branch():
 @app.route('/api/admin/branches/<int:bid>', methods=['PUT'])
 @api_login_required
 def api_upd_branch(bid):
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     database.update_branch(bid, d.get('name',''), d.get('address'), d.get('phone'))
     return jsonify({'success':True})
 
@@ -462,7 +573,7 @@ def api_del_branch(bid):
 @app.route('/api/admin/salary/calculate', methods=['POST'])
 @api_login_required
 def api_calc():
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
     year  = int(d.get('year',  date.today().year))
     month = int(d.get('month', date.today().month))
     eid   = d.get('employee_id')
@@ -489,7 +600,7 @@ def api_sal_records():
 @app.route('/api/admin/salary/mark-paid', methods=['POST'])
 @api_login_required
 def api_mark_paid():
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     database.mark_paid(d['employee_id'], d['year'], d['month'])
     return jsonify({'success':True})
 
@@ -502,7 +613,7 @@ def api_leave_types():
 @app.route('/api/admin/leave-types', methods=['POST'])
 @api_login_required
 def api_add_leave_type():
-    d    = request.json or {}
+    d    = request.get_json(silent=True) or {}
     name = (d.get('name') or '').strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
     try:
@@ -514,7 +625,7 @@ def api_add_leave_type():
 @app.route('/api/admin/leave-types/<int:lid>', methods=['PUT'])
 @api_login_required
 def api_upd_leave_type(lid):
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     database.update_leave_type(lid, name=d.get('name'), is_paid=d.get('is_paid'),
                                color=d.get('color'), is_active=d.get('is_active'))
     return jsonify({'success':True,'message':'Leave type updated'})
@@ -540,7 +651,7 @@ def api_leave():
 @app.route('/api/admin/leave', methods=['POST'])
 @api_login_required
 def api_add_leave():
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
     eid   = d.get('employee_id')
     ltid  = d.get('leave_type_id')
     start = d.get('start_date')
@@ -557,7 +668,7 @@ def api_add_leave():
 @app.route('/api/admin/leave/<int:lid>', methods=['PUT'])
 @api_login_required
 def api_upd_leave(lid):
-    d  = request.json or {}
+    d  = request.get_json(silent=True) or {}
     kw = {}
     for f in ['leave_type_id','start_date','end_date','is_paid','notes']:
         if f in d: kw[f] = d[f]
@@ -584,7 +695,7 @@ def api_notes():
 @app.route('/api/admin/notes', methods=['POST'])
 @api_login_required
 def api_save_note():
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
     eid   = d.get('employee_id'); year = d.get('year'); month = d.get('month')
     if not eid or not year or not month:
         return jsonify({'success':False,'message':'Missing data'}), 400
@@ -600,7 +711,7 @@ def api_blocked():
 @app.route('/api/admin/blocked-sites', methods=['POST'])
 @api_login_required
 def api_add_blocked():
-    d  = request.json or {}
+    d  = request.get_json(silent=True) or {}
     ok = database.add_blocked_site(d.get('domain',''), d.get('category','restricted'))
     return jsonify({'success':ok,'message':'Added' if ok else 'Already exists'})
 
@@ -648,7 +759,7 @@ def api_get_theme():
 @app.route('/api/admin/theme', methods=['POST'])
 @api_login_required
 def api_save_theme():
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']:
         if k in d: database.set_setting(f'theme_{k}', str(d[k]).replace('#',''))
     return jsonify({'success':True,'message':'Theme saved'})
@@ -656,7 +767,9 @@ def api_save_theme():
 @app.route('/api/admin/change-password', methods=['POST'])
 @api_login_required
 def api_change_pw():
-    d    = request.json or {}
+    if current_user.is_owner:
+        return jsonify({'success':False,'message':'Change the owner password from the owner dashboard'}), 400
+    d    = request.get_json(silent=True) or {}
     ok, msg = database.change_password(current_user.username,
                                        d.get('current_password',''), d.get('new_password',''))
     if ok: logout_user()
@@ -671,9 +784,15 @@ def api_users():
 @app.route('/api/admin/users', methods=['POST'])
 @api_login_required
 def api_add_user():
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
+    email = (d.get('email') or '').strip()
+    if len(d.get('password') or '') < 8:
+        return jsonify({'success':False,'message':'Password must be at least 8 characters'}), 400
+    if email and accounts.email_in_use(email):
+        return jsonify({'success':False,'message':'That email is already registered'}), 400
     try:
-        database.create_admin(d['username'],d['password'],d.get('role','admin'),d.get('branch_id'),d.get('email'))
+        database.create_admin(d['username'],d['password'],d.get('role','admin'),d.get('branch_id'),email or None)
+        accounts.reindex_account(g.account['id'])
         return jsonify({'success':True,'message':'User created'})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
@@ -681,13 +800,18 @@ def api_add_user():
 @app.route('/api/admin/account-email', methods=['POST'])
 @api_login_required
 def api_set_account_email():
-    email = ((request.json or {}).get('email') or '').strip()
+    if current_user.is_owner:
+        return jsonify({'success':False,'message':'Change the owner email from the owner dashboard'}), 400
+    email = ((request.get_json(silent=True) or {}).get('email') or '').strip()
     if email and ('@' not in email or '.' not in email.split('@')[-1]):
         return jsonify({'success':False,'message':'Enter a valid email address'}), 400
+    if email and accounts.email_in_use(email, g.account['id'], current_user.username):
+        return jsonify({'success':False,'message':'That email is already registered'}), 400
     try:
         database.set_admin_email(current_user.username, email)
+        accounts.reindex_account(g.account['id'])
     except Exception:
-        return jsonify({'success':False,'message':'That email is already used by another account'}), 400
+        return jsonify({'success':False,'message':'That email is already registered'}), 400
     return jsonify({'success':True,'message':'Sign-in email saved' if email else 'Sign-in email removed'})
 
 # ── LOGS ───────────────────────────────────────────────────────────────────────
@@ -719,7 +843,7 @@ def api_get_photo_settings():
 @app.route('/api/admin/photo-settings', methods=['POST'])
 @api_login_required
 def api_set_photo_settings():
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     database.set_photo_settings(enabled=d.get('enabled'), retention_days=d.get('retention_days'))
     return jsonify({'success':True,'message':'Photo settings saved'})
 
@@ -738,7 +862,7 @@ def api_purge_photos():
 @app.route('/api/admin/photos/bulk-delete', methods=['POST'])
 @api_login_required
 def api_bulk_delete_photos():
-    d     = request.json or {}
+    d     = request.get_json(silent=True) or {}
     items = d.get('items') or []
     pairs = []
     for it in items:
@@ -756,9 +880,10 @@ def api_bulk_delete_photos():
 @api_login_required
 def api_backup():
     ts   = datetime.now().strftime('%Y%m%d_%H%M%S')
-    dest = os.path.join(config.BACKUP_DIR, f'shiftguard_backup_{ts}.db')
-    shutil.copy2(config.DATABASE_PATH, dest)
-    return send_file(dest, as_attachment=True, download_name=f'shiftguard_backup_{ts}.db')
+    slug = g.account['slug']
+    dest = os.path.join(config.BACKUP_DIR, f'{slug}_backup_{ts}.db')
+    shutil.copy2(database.current_db_path(), dest)
+    return send_file(dest, as_attachment=True, download_name=f'{slug}_backup_{ts}.db')
 
 # ── REPORTS (daily / monthly, each exportable as Excel, Word or PDF) ───────────
 EXPORT_MIME = {
@@ -956,9 +1081,133 @@ def api_export(section, fmt):
         logger.error(f"Export error: {e}")
         return jsonify({'error':str(e)}), 500
 
+# ══════════════════════════════════════════════════════════════════════════════
+# OWNER DASHBOARD (platform owner: every account)
+# ══════════════════════════════════════════════════════════════════════════════
+def _ok(**kw):  return jsonify(dict(success=True, **kw))
+def _err(msg, code=400): return jsonify({'success':False,'message':msg}), code
+
+@app.route('/owner')
+@owner_required
+def owner_page():
+    session.pop('acting_account', None)
+    return render_template('owner.html', theme=dict(config.DEFAULT_THEME), owner=current_user)
+
+@app.route('/api/owner/overview')
+@owner_required
+def api_owner_overview():
+    rows, totals = [], {'accounts':0,'active':0,'suspended':0,'pending':0,'employees':0,'checked_in':0,'today':0}
+    for acc in accounts.list_accounts():
+        st = accounts.account_stats(acc)
+        rows.append({k: acc[k] for k in ('id','name','slug','status','contact_name','contact_email','phone',
+                                         'notes','created_at','approved_at','last_activity')} | st)
+        if acc['status'] in ('active','suspended','pending'):
+            totals[acc['status']] += 1
+        if acc['status'] in ('active','suspended'):
+            totals['accounts'] += 1
+            totals['employees']  += st['employees']
+            totals['checked_in'] += st['checked_in']
+            totals['today']      += st['today']
+    own = accounts.get_owner(current_user.owner_id)
+    return _ok(accounts=rows, totals=totals, first_account=accounts.first_account_id(),
+               owner={'email':own['email'],'name':own['name'],'must_change':bool(own['must_change'])})
+
+@app.route('/api/owner/accounts', methods=['POST'])
+@owner_required
+def api_owner_create():
+    d = request.get_json(silent=True) or {}
+    try:
+        aid, err = accounts.create_account(d.get('business',''), d.get('name',''), d.get('email',''),
+                                           d.get('phone',''), d.get('password',''))
+    except Exception as e:
+        logger.error(f'Create account failed: {e}')
+        return _err('Could not create the account', 500)
+    if err: return _err(err)
+    accounts.log('account_created', current_user.email, aid, _client_ip(), d.get('business',''))
+    return _ok(id=aid, message='Account created')
+
+@app.route('/api/owner/accounts/<int:aid>', methods=['PUT'])
+@owner_required
+def api_owner_update(aid):
+    d = request.get_json(silent=True) or {}
+    err = accounts.update_account(aid, d.get('business'), d.get('name'), d.get('email'), d.get('phone'), d.get('notes'))
+    if err: return _err(err)
+    accounts.log('account_updated', current_user.email, aid, _client_ip())
+    return _ok(message='Account updated')
+
+@app.route('/api/owner/accounts/<int:aid>/<action>', methods=['POST'])
+@owner_required
+def api_owner_action(aid, action):
+    d = request.get_json(silent=True) or {}
+    if action == 'approve':
+        try: err = accounts.approve(aid)
+        except Exception as e:
+            logger.error(f'Approve failed: {e}'); err = 'Could not create the account'
+        msg = 'Account approved and ready to use'
+    elif action == 'reject':
+        err, msg = accounts.reject(aid), 'Request rejected'
+    elif action in ('suspend', 'activate'):
+        err = accounts.set_status(aid, 'suspended' if action == 'suspend' else 'active')
+        msg = 'Account suspended' if action == 'suspend' else 'Account activated'
+    elif action == 'reset-password':
+        err = accounts.reset_admin_password(aid, d.get('username',''), d.get('password',''))
+        msg = f"Password reset for {d.get('username','')}"
+    elif action == 'open':
+        acc = accounts.get_account(aid)
+        if not acc or not acc['db_file'] or acc['status'] not in ('active','suspended'):
+            return _err('This account cannot be opened')
+        session['acting_account'] = aid
+        accounts.log('owner_opened_account', current_user.email, aid, _client_ip())
+        return _ok(redirect='/admin')
+    else:
+        return _err('Unknown action', 404)
+    if err: return _err(err)
+    accounts.log(f'account_{action}', current_user.email, aid, _client_ip(), d.get('username',''))
+    return _ok(message=msg)
+
+@app.route('/api/owner/accounts/<int:aid>', methods=['DELETE'])
+@owner_required
+def api_owner_delete(aid):
+    acc = accounts.get_account(aid)
+    if not acc: return _err('Account not found', 404)
+    if (request.get_json(silent=True) or {}).get('confirm','').strip() != acc['name']:
+        return _err('Type the account name exactly to confirm')
+    err = accounts.delete_account(aid)
+    if err: return _err(err)
+    accounts.log('account_deleted', current_user.email, aid, _client_ip(), acc['name'])
+    return _ok(message=f"{acc['name']} deleted. Its data was archived on the server.")
+
+@app.route('/api/owner/accounts/<int:aid>/admins')
+@owner_required
+def api_owner_admins(aid):
+    return _ok(admins=accounts.account_admins(aid))
+
+@app.route('/api/owner/leave-account', methods=['POST'])
+@owner_required
+def api_owner_leave():
+    session.pop('acting_account', None)
+    return _ok(redirect='/owner')
+
+@app.route('/api/owner/log')
+@owner_required
+def api_owner_log():
+    return _ok(log=accounts.get_log())
+
+@app.route('/api/owner/profile', methods=['POST'])
+@owner_required
+def api_owner_profile():
+    d = request.get_json(silent=True) or {}
+    err = accounts.update_owner(current_user.owner_id, d.get('email'), d.get('name'),
+                                d.get('current_password'), d.get('new_password') or None)
+    if err: return _err(err)
+    accounts.log('owner_profile_updated', current_user.email, None, _client_ip())
+    return _ok(message='Owner details saved')
+
 # ── ERRORS ─────────────────────────────────────────────────────────────────────
 @app.errorhandler(404)
-def e404(e): return render_template('error.html',error='Page not found',theme=database.get_theme()),404
+def e404(e):
+    if request.path.startswith('/api/'): return jsonify({'success':False,'message':'Not found'}),404
+    return render_template('error.html',error='Page not found',theme=database.get_theme()),404
 @app.errorhandler(500)
 def e500(e): return render_template('error.html',error='Server error',theme=database.get_theme()),500
 

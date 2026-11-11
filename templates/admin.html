@@ -27,7 +27,7 @@ body{font-family:var(--font)}
   <div class="sidebar-brand">
     <img src="/static/images/brand/shiftguard-mark.svg" class="sb-logo" alt="">
     <h2>{{ theme.logo_text }}</h2>
-    <p>Management System</p>
+    <p>{{ account.name if account.name|lower != theme.logo_text|lower else "Management System" }}</p>
   </div>
   <nav>
     <div class="sb-section">
@@ -75,6 +75,15 @@ body{font-family:var(--font)}
   </div>
 
   <div class="page-content">
+    {% if user.is_owner %}
+    <div class="owner-bar">
+      <span>👑 You're viewing <strong>{{ account.name }}</strong> as the ShiftGuard owner{% if account.status == 'suspended' %} · <em>this account is suspended</em>{% endif %}.</span>
+      <span style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a class="btn btn-outline btn-sm" href="/kiosk">Open kiosk</a>
+        <button class="btn btn-dark btn-sm" onclick="leaveAccount()">← Back to owner dashboard</button>
+      </span>
+    </div>
+    {% endif %}
     <div id="msg-ok"   class="msg msg-ok"></div>
     <div id="msg-err"  class="msg msg-err"></div>
     <div id="msg-info" class="msg msg-info"></div>

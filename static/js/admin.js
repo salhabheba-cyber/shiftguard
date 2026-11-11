@@ -30,7 +30,11 @@ async function api(url,method,body){
   method=method||'GET';
   const opts={method,headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
-  const r=await fetch(url,opts);return r.json();
+  const r=await fetch(url,opts);
+  // Signed out (or the owner left this account): go back to the right place.
+  if(r.status===401){location.href='/?signin=1';return {};}
+  if(r.status===409){location.href='/owner';return {};}
+  return r.json();
 }
 function fmtT(ts){if(!ts)return'—';try{return new Date(ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});}catch{return(ts+'').substring(11,16)||'—';}}
 function fmtDT(ts){if(!ts)return'';try{return new Date(ts).toISOString().substring(0,16);}catch{return(ts+'').substring(0,16);}}
@@ -517,6 +521,9 @@ async function saveAdmin(){
 async function saveAccountEmail(){
   var d=await api('/api/admin/account-email','POST',{email:gv('acct-email').trim()});
   if(d.success){msg('ok',d.message);loadAdmins();}else msg('err',d.message);
+}
+async function leaveAccount(){
+  var d=await api('/api/owner/leave-account','POST',{});location.href=(d&&d.redirect)||'/owner';
 }
 async function doLogout(){
   if(!confirm('Logout?'))return;

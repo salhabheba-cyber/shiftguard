@@ -114,6 +114,15 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;m
 .out{margin-top:1.2rem;background:none;border:none;color:color-mix(in srgb,var(--primary) 85%,#000);font:600 .85rem var(--sans);cursor:pointer}
 .out:hover{text-decoration:underline}
 [hidden]{display:none!important}
+.tabs{display:flex;gap:.3rem;padding:.3rem;margin:0 0 1.4rem;border-radius:12px;background:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.7)}
+.tabs button{flex:1;padding:.6rem;border:none;border-radius:9px;background:transparent;font:600 .88rem var(--sans);color:#6B5A4B;cursor:pointer;transition:.2s}
+.tabs button[aria-selected=true]{background:#fff;color:#1E1915;box-shadow:0 4px 12px -6px rgba(60,40,20,.5)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.ok-msg{padding:1rem;border-radius:12px;background:#DDEBDD;border:1px solid #C3D9C4;color:#2F5E3A;font-size:.92rem;line-height:1.45;margin-bottom:1rem}
+.panel{max-height:calc(100vh - 32px);overflow-y:auto}
+.foot{position:fixed;left:0;right:0;bottom:18px;text-align:center;font-size:.72rem;letter-spacing:2.5px;text-transform:uppercase;color:rgba(80,60,40,.55);pointer-events:none}
+@media (max-width:520px){.row2{grid-template-columns:1fr}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
 @media (max-width:520px){
@@ -145,18 +154,25 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;m
 
 <button class="acct" id="acct-btn" type="button" aria-haspopup="dialog">
   <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#E2B47E" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span>
-  <span id="acct-label">{{ user.username if user else 'Account' }}</span>
+  <span id="acct-label">{% if user %}{{ user.name if user.is_owner else user.username }}{% else %}Account{% endif %}</span>
 </button>
+
+<p class="foot">Attendance · Security · Payroll</p>
 
 <div class="veil" id="veil" role="dialog" aria-modal="true" aria-labelledby="panel-title">
   <div class="panel">
     <button class="x" type="button" id="close" aria-label="Close">&times;</button>
 
-    <!-- Sign in -->
+    <!-- Sign in / create account -->
     <section id="v-signin" {% if user %}hidden{% endif %}>
       <h2 id="panel-title">Shift<span>Guard</span></h2>
-      <p class="sub">Sign in to your account</p>
+      <p class="sub" id="sub">Sign in to your account</p>
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true" id="tab-in">Sign in</button>
+        <button type="button" role="tab" aria-selected="false" id="tab-up">Create account</button>
+      </div>
       <div class="err" id="err" role="alert"></div>
+      <div id="pane-in">
       <form id="frm" novalidate>
         <div class="fg"><label for="email">Email</label>
           <input id="email" name="email" type="text" inputmode="email" autocomplete="username" placeholder="you@company.com" required></div>
@@ -164,14 +180,33 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;m
           <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
         <button class="go" type="submit" id="go">Sign in</button>
       </form>
+      </div>
+      <div id="pane-up" hidden>
+        <div class="ok-msg" id="up-ok" hidden></div>
+        <form id="frm-up" novalidate>
+          <div class="fg"><label for="u-business">Business name</label><input id="u-business" type="text" autocomplete="organization" placeholder="e.g. Glow Beauty Salon" required></div>
+          <div class="row2">
+            <div class="fg"><label for="u-name">Your name</label><input id="u-name" type="text" autocomplete="name"></div>
+            <div class="fg"><label for="u-phone">Phone <span style="font-weight:400;color:#8C7B6A">(optional)</span></label><input id="u-phone" type="tel" autocomplete="tel"></div>
+          </div>
+          <div class="fg"><label for="u-email">Email</label><input id="u-email" type="email" autocomplete="email" placeholder="you@company.com" required></div>
+          <div class="fg"><label for="u-pw">Password <span style="font-weight:400;color:#8C7B6A">(at least 8 characters)</span></label><input id="u-pw" type="password" autocomplete="new-password" required></div>
+          <input class="hp" id="u-website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button class="go" type="submit" id="go-up">Request account</button>
+          <p style="font-size:.78rem;color:#8C7B6A;margin-top:.8rem">We review each request. You can sign in once your account is approved.</p>
+        </form>
+      </div>
     </section>
 
     <!-- Choose where to go -->
     <section id="v-choose" {% if not user %}hidden{% endif %}>
       <h2>Welcome</h2>
       <p class="sub">Where would you like to go?</p>
-      <p class="who">Signed in as <strong id="who">{{ user.username if user else '' }}</strong></p>
-      <div class="choices">
+      <p class="who">Signed in as <strong id="who">{% if user %}{{ user.name if user.is_owner else user.username }}{% endif %}</strong><span id="who-acc">{% if account and not (user and user.is_owner) %} · {{ account.name }}{% endif %}</span></p>
+      <div class="choices" id="c-owner" {% if not (user and user.is_owner) %}hidden{% endif %}>
+        <a class="choice" href="/owner"><span class="ci">👑</span><span><b>Owner Dashboard</b><small>All accounts, sign-up requests &amp; activity</small></span></a>
+      </div>
+      <div class="choices" id="c-account" {% if not user or user.is_owner %}hidden{% endif %}>
         <a class="choice" href="/kiosk"><span class="ci">🕒</span><span><b>Kiosk</b><small>Employee check-in &amp; check-out</small></span></a>
         <a class="choice" href="/admin"><span class="ci">📊</span><span><b>Admin Dashboard</b><small>Manage staff, attendance &amp; salary</small></span></a>
       </div>
@@ -219,12 +254,49 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;m
   addEventListener('keydown', function(e){ if (e.key === 'Escape' && veil.classList.contains('open')) close(); });
   if (/[?&]signin=1/.test(location.search)) open();
 
-  function show(signedIn, who){
+  function show(signedIn, who, kind, accName){
     document.getElementById('v-signin').hidden = signedIn;
     document.getElementById('v-choose').hidden = !signedIn;
     document.getElementById('acct-label').textContent = signedIn ? who : 'Account';
     document.getElementById('who').textContent = who || '';
+    document.getElementById('who-acc').textContent = accName ? ' · ' + accName : '';
+    document.getElementById('c-owner').hidden = kind !== 'owner';
+    document.getElementById('c-account').hidden = kind !== 'account';
   }
+
+  // Sign in / create account tabs.
+  var tabIn = document.getElementById('tab-in'), tabUp = document.getElementById('tab-up');
+  function tab(up){
+    tabIn.setAttribute('aria-selected', !up); tabUp.setAttribute('aria-selected', up);
+    document.getElementById('pane-in').hidden = up; document.getElementById('pane-up').hidden = !up;
+    document.getElementById('sub').textContent = up ? 'Create an account for your business' : 'Sign in to your account';
+    document.getElementById('err').classList.remove('show');
+    setTimeout(function(){ document.getElementById(up ? 'u-business' : 'email').focus(); }, 30);
+  }
+  tabIn.addEventListener('click', function(){ tab(false); });
+  tabUp.addEventListener('click', function(){ tab(true); });
+  if (/[?&]signup=1/.test(location.search)) { open(); tab(true); }
+
+  var goUp = document.getElementById('go-up');
+  document.getElementById('frm-up').addEventListener('submit', async function(e){
+    e.preventDefault(); err.classList.remove('show');
+    function v(id){ return document.getElementById(id).value.trim(); }
+    if (!v('u-business') || !v('u-email') || !document.getElementById('u-pw').value) {
+      err.textContent = 'Enter your business name, email and a password'; err.classList.add('show'); return;
+    }
+    goUp.disabled = true; goUp.textContent = 'Sending…';
+    try {
+      var r = await fetch('/api/signup', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({business:v('u-business'), name:v('u-name'), phone:v('u-phone'), email:v('u-email'),
+                              password:document.getElementById('u-pw').value, website:v('u-website')})});
+      var d = await r.json();
+      if (d.success) {
+        document.getElementById('frm-up').hidden = true;
+        var ok = document.getElementById('up-ok'); ok.textContent = d.message; ok.hidden = false;
+      } else { err.textContent = d.message || 'Could not send your request'; err.classList.add('show'); }
+    } catch (_) { err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
+    goUp.disabled = false; goUp.textContent = 'Request account';
+  });
 
   var err = document.getElementById('err'), go = document.getElementById('go');
   document.getElementById('frm').addEventListener('submit', async function(e){
@@ -236,7 +308,11 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;m
       var r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({email: email, password: pw})});
       var d = await r.json();
-      if (d.success) { document.getElementById('pw').value = ''; show(true, d.username); }
+      if (d.success) {
+        document.getElementById('pw').value = '';
+        if (d.kind === 'owner' && d.must_change) { location.href = '/owner'; return; }
+        show(true, d.username, d.kind, d.account);
+      }
       else { err.textContent = d.message || 'Invalid email or password'; err.classList.add('show'); }
     } catch (_) { err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
     go.disabled = false; go.textContent = 'Sign in';

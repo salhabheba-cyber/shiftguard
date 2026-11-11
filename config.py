@@ -10,9 +10,44 @@ PHOTOS_DIR  = os.path.join(BASE_DIR, 'static', 'photos')
 for d in [DATA_DIR, LOGS_DIR, BACKUP_DIR, REPORTS_DIR, PHOTOS_DIR]:
     os.makedirs(d, exist_ok=True)
 
+# The original single-business database. It is kept exactly where it was and
+# becomes the first account on the platform, so none of its data moves.
 DATABASE_PATH = os.path.join(DATA_DIR, 'shiftguard.db')
+# Platform-level data: the list of accounts and the owner login.
+PLATFORM_DB_PATH = os.path.join(DATA_DIR, 'platform.db')
+# Every other account gets its own database file here.
+ACCOUNTS_DIR  = os.path.join(DATA_DIR, 'accounts')
+ARCHIVE_DIR   = os.path.join(DATA_DIR, 'archive')
+os.makedirs(ACCOUNTS_DIR, exist_ok=True)
+os.makedirs(ARCHIVE_DIR, exist_ok=True)
+# Name given to the original business when it becomes the first account.
+LEGACY_ACCOUNT_NAME = os.getenv('LEGACY_ACCOUNT_NAME', 'MySpa')
+# First owner login. Set OWNER_EMAIL / OWNER_PASSWORD in the environment to
+# choose your own; otherwise the defaults below are used and the owner
+# dashboard asks you to change the password on first sign-in.
+OWNER_EMAIL    = os.getenv('OWNER_EMAIL', 'owner@shiftguard.app')
+OWNER_PASSWORD = os.getenv('OWNER_PASSWORD', 'owner12345')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
-SECRET_KEY    = os.getenv('SECRET_KEY', 'shiftguard-2026-secret-key!')
+
+def _secret_key():
+    """SECRET_KEY from the environment, else a random key generated once and
+    kept in data/. (A key written in the source code would let anyone who has
+    read the code forge a signed-in session.)"""
+    env = os.getenv('SECRET_KEY')
+    if env: return env
+    path = os.path.join(DATA_DIR, '.secret_key')
+    try:
+        with open(path) as f:
+            key = f.read().strip()
+            if key: return key
+    except FileNotFoundError:
+        pass
+    import secrets
+    key = secrets.token_hex(32)
+    with open(path, 'w') as f: f.write(key)
+    return key
+
+SECRET_KEY    = _secret_key()
 PORT          = int(os.getenv('PORT', 5000))
 HOST          = '0.0.0.0'
 DEBUG         = False

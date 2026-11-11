@@ -1,15 +1,49 @@
-import sqlite3, logging, calendar
+import sqlite3, logging, calendar, contextvars
 from datetime import datetime, timedelta, date
 from contextlib import contextmanager
 import config
 
 logger = logging.getLogger(__name__)
 
+# ── WHICH ACCOUNT'S DATABASE ──────────────────────────────────────────────────
+# Every business account has its own SQLite file. All functions in this module
+# work on the database of the account that is currently selected: either the
+# one bound for this web request (flask.g.sg_db_path, set by app.py from the
+# signed-in user) or one bound explicitly with `using(path)`. Nothing falls
+# back to a default file, so one account can never read another's data by
+# accident.
+class NoAccountSelected(RuntimeError):
+    pass
+
+_bound_path = contextvars.ContextVar('sg_db_path', default=None)
+
+@contextmanager
+def using(path):
+    """Run the enclosed code against the database file at `path`."""
+    token = _bound_path.set(path)
+    try:
+        yield
+    finally:
+        _bound_path.reset(token)
+
+def current_db_path():
+    path = _bound_path.get()
+    if path: return path
+    try:
+        from flask import g, has_app_context
+        if has_app_context():
+            path = g.get('sg_db_path')
+    except ImportError:
+        pass
+    if not path:
+        raise NoAccountSelected('No account database selected')
+    return path
+
 @contextmanager
 def get_db():
     conn = None
     try:
-        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn = sqlite3.connect(current_db_path())
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         yield conn
@@ -252,6 +286,11 @@ def set_setting(key, value):
         run('INSERT INTO settings (key,value) VALUES (?,?)', (key, value))
 
 def get_theme():
+    try:
+        current_db_path()
+    except NoAccountSelected:
+        # Public pages (home, owner dashboard) use the standard ShiftGuard look.
+        return dict(config.DEFAULT_THEME)
     return {k: get_setting(f'theme_{k}', config.DEFAULT_THEME.get(k,''))
             for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']}
 
@@ -762,9 +801,12 @@ def _clean_email(email):
     email = (email or '').strip()
     return email or None
 
-def create_admin(username, password, role='admin', branch_id=None, email=None):
+def create_admin(username, password, role='admin', branch_id=None, email=None, password_hash=None):
     run('INSERT INTO admin_users (username,password_hash,role,branch_id,email) VALUES (?,?,?,?,?)',
-        (username, hash_pw(password), role, branch_id, _clean_email(email)))
+        (username, password_hash or hash_pw(password), role, branch_id, _clean_email(email)))
+
+def set_admin_password(username, new_pw):
+    run('UPDATE admin_users SET password_hash=? WHERE username=?', (hash_pw(new_pw), username))
 
 def set_admin_email(username, email):
     run('UPDATE admin_users SET email=? WHERE username=?', (_clean_email(email), username))
