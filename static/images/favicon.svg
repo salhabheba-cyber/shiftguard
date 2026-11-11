@@ -1,15 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ShiftGuard">
   <defs>
-    <linearGradient id="sg-g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#14C2C2"/>
-      <stop offset="1" stop-color="#00787A"/>
+    <linearGradient id="sg-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F3D3A6"/>
+      <stop offset=".45" stop-color="#D4A26A"/>
+      <stop offset="1" stop-color="#9A6A3A"/>
+    </linearGradient>
+    <linearGradient id="sg-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A322C"/>
+      <stop offset="1" stop-color="#16120F"/>
+    </linearGradient>
+    <linearGradient id="sg-shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <path d="M32 3 L55 11 V29 C55 45 45 55.5 32 61 C19 55.5 9 45 9 29 V11 Z" fill="url(#sg-g)"/>
-  <path d="M32 3 L55 11 V29 C55 45 45 55.5 32 61 C19 55.5 9 45 9 29 V11 Z" fill="none" stroke="#1C3A3B" stroke-opacity=".18" stroke-width="1.5"/>
-  <circle cx="32" cy="32" r="15" fill="none" stroke="#fff" stroke-width="3.2"/>
-  <g stroke="#fff" stroke-width="2.4" stroke-linecap="round">
-    <path d="M32 19.6v2.6M44.4 32h-2.6M32 44.4v-2.6M19.6 32h2.6" stroke-opacity=".75"/>
-  </g>
-  <path d="M25.5 30.5 L31 36 L40.5 24.5" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 3 L55 11 V29 C55 45 45 55.5 32 61 C19 55.5 9 45 9 29 V11 Z" fill="url(#sg-body)" stroke="url(#sg-gold)" stroke-width="2.6" stroke-linejoin="round"/>
+  <path d="M32 6.5 L52 13.5 V29 C52 31 51.8 33 51.4 34.8 C40 30 25 22 12 21 V13.5 Z" fill="url(#sg-shine)"/>
+  <circle cx="32" cy="32" r="14.5" fill="none" stroke="url(#sg-gold)" stroke-width="3"/>
+  <path d="M32 20v2.4M44 32h-2.4M32 44v-2.4M20 32h2.4" stroke="#D4A26A" stroke-width="2.2" stroke-linecap="round" stroke-opacity=".8"/>
+  <path d="M25.5 30.5 L31 36 L40.5 24.5" fill="none" stroke="url(#sg-gold)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
