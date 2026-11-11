@@ -143,6 +143,12 @@ def _record_failure(ip):
     _failed_logins.setdefault(ip, []).append(datetime.now())
 
 # ── SECURITY HEADERS ──────────────────────────────────────────────────────────
+@app.before_request
+def block_public_photos():
+    """Check-in photos are private: never serve them as plain static files."""
+    if request.path.startswith('/static/photos/'):
+        return ('Not found', 404)
+
 @app.after_request
 def sec_headers(r):
     r.headers['X-Content-Type-Options'] = 'nosniff'
@@ -171,6 +177,25 @@ def save_photo(b64, emp_name, action):
     except Exception as e:
         logger.error(f"Photo save error: {e}")
         return None
+
+def _photo_url(rel_path):
+    """Link to a check-in photo. Photos are served only through /media/,
+    which checks that the viewer is signed in to the account they belong to."""
+    return f'/media/{rel_path}' if rel_path else None
+
+def _photo_belongs_to_account(rel_path, acc):
+    """True if `rel_path` (relative to static/) is inside this account's photo
+    folder. The original business keeps its photos in photos/ itself, so the
+    folders of the other accounts (photos/a/...) are excluded for it."""
+    rel = os.path.normpath(rel_path).replace('\\', '/')
+    if rel.startswith(('../', '/')) or rel == '..' or '/../' in f'/{rel}/':
+        return False
+    base = acc['photo_dir'].rstrip('/')
+    if not rel.startswith(base + '/'):
+        return False
+    if base == 'photos' and rel.startswith('photos/a/'):
+        return False
+    return True
 
 def _remove_photo_file(rel_path):
     if not rel_path: return
@@ -216,6 +241,21 @@ def _client_ip():
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+# PRIVATE PHOTOS
+# ══════════════════════════════════════════════════════════════════════════════
+@app.route('/media/<path:rel_path>')
+def media(rel_path):
+    acc = g.get('account')
+    if not current_user.is_authenticated or acc is None or not _photo_belongs_to_account(rel_path, acc):
+        return ('Not found', 404)
+    path = os.path.join(config.BASE_DIR, 'static', os.path.normpath(rel_path))
+    if not os.path.isfile(path):
+        return ('Not found', 404)
+    resp = send_file(path, mimetype='image/jpeg', conditional=True)
+    resp.headers['Cache-Control'] = 'private, max-age=3600'
+    return resp
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PUBLIC LANDING
 # ══════════════════════════════════════════════════════════════════════════════
@@ -275,7 +315,7 @@ def kiosk_checkin():
         if not photo: pstat = 'save_failed'
     ok, msg = database.record_check_in(eid, photo, pstat, _client_ip())
     return jsonify({'success':ok,'message':msg,
-                    'photo_path':f'/static/{photo}' if photo else None,
+                    'photo_path':_photo_url(photo),
                     'time':datetime.now().strftime('%H:%M')})
 
 @app.route('/api/kiosk/checkout', methods=['POST'])
@@ -296,7 +336,7 @@ def kiosk_checkout():
         if not photo: pstat = 'save_failed'
     ok, msg = database.record_check_out(eid, photo, pstat, _client_ip())
     return jsonify({'success':ok,'message':msg,
-                    'photo_path':f'/static/{photo}' if photo else None,
+                    'photo_path':_photo_url(photo),
                     'time':datetime.now().strftime('%H:%M')})
 
 @app.route('/api/kiosk/status')
@@ -381,10 +421,10 @@ def api_dashboard():
             'position':        l['position'] or '',
             'branch_name':     l.get('branch_name',''),
             'check_in':        str(l['check_in'])[:16] if l['check_in'] else None,
-            'check_in_photo':  f"/static/{l['check_in_photo']}" if l['check_in_photo'] else None,
+            'check_in_photo':  _photo_url(l['check_in_photo']),
             'check_in_ip':     l.get('check_in_ip') or None,
             'check_out':       str(l['check_out'])[:16] if l['check_out'] else None,
-            'check_out_photo': f"/static/{l['check_out_photo']}" if l['check_out_photo'] else None,
+            'check_out_photo': _photo_url(l['check_out_photo']),
             'check_out_ip':    l.get('check_out_ip') or None,
             'status':          l['status'],
             'minutes_late':    l['minutes_late'] or 0,
@@ -408,10 +448,10 @@ def api_attendance():
         'branch_name':     l.get('branch_name',''),
         'date':            l['date'],
         'check_in':        str(l['check_in'])[:19]  if l['check_in']  else '',
-        'check_in_photo':  f"/static/{l['check_in_photo']}"  if l['check_in_photo']  else None,
+        'check_in_photo':  _photo_url(l['check_in_photo']),
         'check_in_ip':     l.get('check_in_ip') or None,
         'check_out':       str(l['check_out'])[:19] if l['check_out'] else '',
-        'check_out_photo': f"/static/{l['check_out_photo']}" if l['check_out_photo'] else None,
+        'check_out_photo': _photo_url(l['check_out_photo']),
         'check_out_ip':    l.get('check_out_ip') or None,
         'status':          l['status'] or '',
         'minutes_late':    l['minutes_late'] or 0,
@@ -832,7 +872,7 @@ def api_photos():
         for field,label in [('check_in_photo','Check In'),('check_out_photo','Check Out')]:
             if l.get(field):
                 photos.append({'att_id':l['id'],'field':field,'employee':l['name'],
-                                'date':l['date'],'type':label,'url':f"/static/{l[field]}"})
+                                'date':l['date'],'type':label,'url':_photo_url(l[field])})
     return jsonify({'photos':photos})
 
 @app.route('/api/admin/photo-settings', methods=['GET'])
