@@ -39,6 +39,10 @@ img,svg{display:block}
 .bg::before{content:"";position:absolute;inset:0;opacity:.5;
   background-image:linear-gradient(rgba(96,140,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(96,140,255,.07) 1px,transparent 1px);
   background-size:56px 56px;mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.bg::after{content:"";position:absolute;inset:-25%;transform-origin:50% 50%;
+  background:conic-gradient(from 0deg at 50% 50%,rgba(255,106,0,.14),rgba(37,99,235,.16),rgba(10,22,51,0) 35%,rgba(10,22,51,0) 65%,rgba(255,106,0,.14));
+  filter:blur(110px);opacity:.75;animation:aurora 46s linear infinite}
+@keyframes aurora{to{transform:rotate(360deg)}}
 .floor{position:absolute;left:-50%;right:-50%;bottom:-10%;height:55%;transform:perspective(600px) rotateX(70deg);transform-origin:bottom;
   background-image:linear-gradient(rgba(255,106,0,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.35) 1px,transparent 1px);
   background-size:70px 70px;mask-image:linear-gradient(to top,#000 10%,transparent 85%);animation:floor 6s linear infinite;opacity:.55}
@@ -50,8 +54,10 @@ img,svg{display:block}
 
 /* ── NAV ────────────────────────────────────────────────────────────────── */
 .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
-  background:rgba(5,11,31,.62);border-bottom:1px solid var(--line)}
-.nav .wrap{display:flex;align-items:center;gap:1.5rem;height:70px}
+  background:rgba(5,11,31,.62);border-bottom:1px solid var(--line);transition:background .35s,border-color .35s}
+.nav .wrap{display:flex;align-items:center;gap:1.5rem;height:70px;transition:height .35s cubic-bezier(.2,.7,.2,1)}
+.nav.scrolled{background:rgba(5,11,31,.88);border-color:rgba(96,140,255,.3)}
+.nav.scrolled .wrap{height:58px}
 .brand{display:flex;align-items:center;gap:.55rem;text-decoration:none;flex:none}
 .brand img{width:40px;height:40px}
 .brand b{font:800 italic 1.45rem var(--display);letter-spacing:-.5px;color:#fff}
@@ -63,6 +69,9 @@ img,svg{display:block}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.72rem 1.25rem;border-radius:12px;font:600 .92rem var(--sans);cursor:pointer;text-decoration:none;border:1px solid transparent;transition:.2s;white-space:nowrap}
 .btn-o{background:var(--og);color:#fff;box-shadow:0 12px 28px -12px rgba(255,106,0,.8)}
 .btn-o:hover{transform:translateY(-2px);box-shadow:0 18px 34px -12px rgba(255,106,0,.9)}
+.btn-lg.btn-o{position:relative}
+.btn-lg.btn-o::before{content:"";position:absolute;inset:-4px;z-index:-1;border-radius:inherit;background:var(--og);filter:blur(12px);opacity:.4;animation:pulseGlow 2.8s ease-in-out infinite}
+@keyframes pulseGlow{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.7;transform:scale(1.07)}}
 .btn-g{background:rgba(255,255,255,.06);color:#fff;border-color:rgba(147,164,200,.3)}
 .btn-g:hover{background:rgba(255,255,255,.12);border-color:rgba(147,164,200,.5)}
 .btn-lg{padding:.95rem 1.6rem;font-size:1rem;border-radius:14px}
@@ -111,6 +120,16 @@ img,svg{display:block}
 .trust{display:flex;gap:1.8rem;justify-content:center;flex-wrap:wrap;margin-top:2.2rem;color:var(--mut);font-size:.85rem}
 .trust span::before{content:"✓";color:var(--o);font-weight:800;margin-right:.4rem}
 
+/* Staged hero entrance: each piece rises in turn on first paint. */
+.hero-rise{opacity:0;transform:translateY(26px) scale(.98);transition:opacity .9s cubic-bezier(.16,.8,.24,1),transform .9s cubic-bezier(.16,.8,.24,1)}
+body.loaded .hero-rise{opacity:1;transform:none}
+.pill.hero-rise{transition-delay:.05s}
+.stage.hero-rise{transition-delay:.16s}
+.hero h1.hero-rise{transition-delay:.34s}
+.hero p.lead.hero-rise{transition-delay:.48s}
+.cta-row.hero-rise{transition-delay:.6s}
+.trust.hero-rise{transition-delay:.72s}
+
 /* ── SECTIONS ───────────────────────────────────────────────────────────── */
 section.block{padding:5rem 0}
 .eyebrow{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--o2);margin-bottom:.6rem}
@@ -118,17 +137,23 @@ h2.title{font:700 clamp(1.6rem,3vw,2.4rem)/1.2 var(--display);color:#fff;letter-
 .sub{color:var(--mut);max-width:620px;margin-top:.7rem}
 .center{text-align:center}.center .sub{margin-left:auto;margin-right:auto}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-top:2.6rem}
-.card{position:relative;padding:1.5rem;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-  border:1px solid var(--line);transition:.3s;overflow:hidden}
+.card{--mx:50%;--my:50%;position:relative;padding:1.5rem;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+  border:1px solid var(--line);transition:transform .25s cubic-bezier(.2,.7,.2,1),background .3s;overflow:hidden;transform-style:preserve-3d;will-change:transform}
 .card::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(255,106,0,.6),transparent 40%,transparent 60%,rgba(59,130,246,.6));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.3s}
-.card:hover{transform:translateY(-4px);background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03))}
-.card:hover::after{opacity:1}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(240px circle at var(--mx) var(--my),rgba(255,255,255,.12),transparent 60%);
+  opacity:0;transition:opacity .4s;pointer-events:none}
+.card:hover{background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03))}
+.card:hover::after,.card:hover::before{opacity:1}
+.card>*{position:relative;z-index:1}
 .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:1.35rem;margin-bottom:1rem;
   background:linear-gradient(135deg,rgba(255,106,0,.25),rgba(37,99,235,.25));border:1px solid rgba(147,164,200,.25)}
 .card h3{font:600 1.08rem var(--display);color:#fff;margin-bottom:.35rem}
 .card p{color:var(--mut);font-size:.92rem}
+.grid .card:nth-child(1){transition-delay:0s}.grid .card:nth-child(2){transition-delay:.08s}.grid .card:nth-child(3){transition-delay:.16s}
+.grid .card:nth-child(4){transition-delay:.24s}.grid .card:nth-child(5){transition-delay:.32s}.grid .card:nth-child(6){transition-delay:.4s}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-top:2.6rem;counter-reset:s}
+.steps .step:nth-child(1){transition-delay:0s}.steps .step:nth-child(2){transition-delay:.14s}.steps .step:nth-child(3){transition-delay:.28s}
 .step{padding:1.5rem;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
 .step::before{counter-increment:s;content:"0" counter(s);display:block;font:800 2rem var(--display);background:var(--og);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:.4rem}
 .step h3{font:600 1.05rem var(--display);color:#fff;margin-bottom:.3rem}
@@ -153,6 +178,8 @@ footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--mut);font-siz
 footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
+/* Higher specificity than .reveal alone, so a card's own hover-tilt speed wins once revealed. */
+.card.reveal{transition:opacity .7s ease,transform .25s cubic-bezier(.2,.7,.2,1),background .3s}
 
 /* ── SIGN-IN PANEL ──────────────────────────────────────────────────────── */
 .veil{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;
@@ -212,8 +239,10 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   section.block{padding:3.5rem 0}.panel{padding:2rem 1.3rem 1.6rem}
 }
 @media (prefers-reduced-motion:reduce){
-  .float,.sway,.face .g,.halo,.chip,.mark3d,.orb,.floor{animation:none}.sway{transform:rotateY(-10deg) rotateX(4deg)}
+  .float,.sway,.face .g,.halo,.chip,.mark3d,.orb,.floor,.bg::after,.btn-lg.btn-o::before{animation:none}.sway{transform:rotateY(-10deg) rotateX(4deg)}
   .reveal{opacity:1;transform:none;transition:none}
+  .hero-rise{opacity:1!important;transform:none!important;transition:none!important}
+  .nav,.nav .wrap,.card{transition:none}
 }
 </style>
 </head>
@@ -238,8 +267,8 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   <!-- HERO -->
   <section class="hero">
     <div class="wrap">
-      <span class="pill"><b>NEW</b> AI assistant built into every account</span>
-      <div class="stage" aria-hidden="true">
+      <span class="pill hero-rise"><b>NEW</b> AI assistant built into every account</span>
+      <div class="stage hero-rise" aria-hidden="true">
         <div class="halo"></div>
         <img class="mark3d" src="/static/images/brand/shiftguard-mark.svg" alt="">
         <div class="float"><div class="sway"><div class="word" id="word"><span class="face" id="face">Shift<span class="g">Guard</span></span></div></div></div>
@@ -248,13 +277,13 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
         <div class="chip c3"><i>✨</i><div><b>AI: 2 late today</b><small>Maya +12 min · Omar +5 min</small></div></div>
         <div class="chip c4"><i>🛡️</i><div><b>Network protected</b><small>11 sites blocked</small></div></div>
       </div>
-      <h1>Smart attendance, payroll &amp; workplace security — <em>powered by AI</em></h1>
-      <p class="lead">Photo + PIN check-in that can't be faked, salaries that calculate themselves, and an assistant that answers questions about your team in seconds.</p>
-      <div class="cta-row">
+      <h1 class="hero-rise">Smart attendance, payroll &amp; workplace security — <em>powered by AI</em></h1>
+      <p class="lead hero-rise">Photo + PIN check-in that can't be faked, salaries that calculate themselves, and an assistant that answers questions about your team in seconds.</p>
+      <div class="cta-row hero-rise">
         <button class="btn btn-o btn-lg" type="button" data-signup>Create your account →</button>
         <button class="btn btn-g btn-lg" type="button" data-ai>✨ Ask ShiftGuard AI</button>
       </div>
-      <div class="trust"><span>Private data per business</span><span>Works on any tablet or phone</span><span>Excel, Word &amp; PDF reports</span></div>
+      <div class="trust hero-rise"><span>Private data per business</span><span>Works on any tablet or phone</span><span>Excel, Word &amp; PDF reports</span></div>
     </div>
   </section>
 
@@ -413,6 +442,45 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
     var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:.12});
     els.forEach(function(el){ io.observe(el); });
   } else { els.forEach(function(el){ el.classList.add('in'); }); }
+
+  // Stage the hero's entrance on first paint.
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ document.body.classList.add('loaded'); }); });
+
+  // Nav condenses once the page has scrolled a little.
+  var nav = document.querySelector('.nav');
+  function onNavScroll(){ nav.classList.toggle('scrolled', window.scrollY > 12); }
+  onNavScroll();
+  addEventListener('scroll', onNavScroll, {passive:true});
+
+  if (!reduce) {
+    // Background drifts slowly as you scroll, for depth.
+    var orbA = document.querySelector('.orb.a'), orbB = document.querySelector('.orb.b');
+    var ticking = false;
+    function onParallax(){
+      var y = window.scrollY;
+      if (orbA) orbA.style.transform = 'translateY(' + (y * 0.12).toFixed(1) + 'px)';
+      if (orbB) orbB.style.transform = 'translateY(' + (-y * 0.18).toFixed(1) + 'px)';
+      ticking = false;
+    }
+    addEventListener('scroll', function(){
+      if (!ticking) { requestAnimationFrame(onParallax); ticking = true; }
+    }, {passive:true});
+
+    // Magnetic tilt + spotlight on feature cards (pointer devices only).
+    if (matchMedia('(hover:hover) and (pointer:fine)').matches) {
+      document.querySelectorAll('.card').forEach(function(card){
+        card.addEventListener('mousemove', function(e){
+          var r = card.getBoundingClientRect();
+          var px = e.clientX - r.left, py = e.clientY - r.top;
+          card.style.setProperty('--mx', px + 'px');
+          card.style.setProperty('--my', py + 'px');
+          var rx = ((py / r.height) - .5) * -8, ry = ((px / r.width) - .5) * 8;
+          card.style.transform = 'translateY(-4px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+        });
+        card.addEventListener('mouseleave', function(){ card.style.transform = ''; });
+      });
+    }
+  }
 
   // Account panel.
   var veil = document.getElementById('veil'), btn = document.getElementById('acct-btn'), lastFocus = btn;
