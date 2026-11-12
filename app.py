@@ -51,6 +51,7 @@ def api_login_required(f):
     def dec(*a, **kw):
         if not current_user.is_authenticated:
             return jsonify({'success':False,'message':'Login required'}), 401
+        database.touch_admin_last_seen(current_user.username)
         return f(*a, **kw)
     return dec
 
@@ -146,6 +147,7 @@ def _require_superadmin(f):
             return jsonify({'success':False,'message':'Login required'}), 401
         if current_user.role != 'superadmin':
             return jsonify({'success':False,'message':'Superadmin access required'}), 403
+        database.touch_admin_last_seen(current_user.username)
         return f(*a, **kw)
     return dec
 
@@ -782,6 +784,41 @@ def api_add_user():
         return jsonify({'success':True,'message':'User created'})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
+
+# ── OWNER DASHBOARD ────────────────────────────────────────────────────────────
+@app.route('/api/admin/owner/overview')
+@_require_superadmin
+def api_owner_overview():
+    return jsonify(database.get_owner_overview())
+
+@app.route('/api/admin/owner/inbox')
+@_require_superadmin
+def api_owner_inbox():
+    return jsonify({'messages': database.get_support_messages(request.args.get('status') or None)})
+
+@app.route('/api/admin/owner/inbox/<int:mid>/resolve', methods=['POST'])
+@_require_superadmin
+def api_owner_resolve(mid):
+    d = request.json or {}
+    database.resolve_support_message(mid, d.get('reply') or None)
+    return jsonify({'success':True,'message':'Marked resolved'})
+
+# ── SUPPORT (branch admin → owner) ────────────────────────────────────────────
+@app.route('/api/admin/support', methods=['GET'])
+@api_login_required
+def api_my_support():
+    return jsonify({'messages': database.get_my_support_messages(current_user.username)})
+
+@app.route('/api/admin/support', methods=['POST'])
+@api_login_required
+def api_send_support():
+    d       = request.json or {}
+    subject = (d.get('subject') or '').strip()
+    message = (d.get('message') or '').strip()
+    if not subject or not message:
+        return jsonify({'success':False,'message':'Subject and message are required'}), 400
+    database.create_support_message(current_user.branch_id, current_user.username, subject, message)
+    return jsonify({'success':True,'message':'Sent to ShiftGuard support'})
 
 # ── LOGS ───────────────────────────────────────────────────────────────────────
 @app.route('/api/admin/logs')

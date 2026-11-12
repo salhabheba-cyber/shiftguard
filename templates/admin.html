@@ -50,7 +50,15 @@ body{font-family:var(--font)}
       <div class="sb-label">System</div>
       <a href="#" class="nav-link" data-tab="security">🔒 <span>Security</span></a>
       <a href="#" class="nav-link" data-tab="settings">⚙️ <span>Settings</span></a>
+      {% if user.role != 'superadmin' %}<a href="#" class="nav-link" data-tab="support">💬 <span>Support</span></a>{% endif %}
     </div>
+    {% if user.role == 'superadmin' %}
+    <div class="sb-section">
+      <div class="sb-label">Owner</div>
+      <a href="#" class="nav-link" data-tab="owner">🏠 <span>Overview</span></a>
+      <a href="#" class="nav-link" data-tab="owner-inbox">📥 <span>Inbox</span></a>
+    </div>
+    {% endif %}
   </nav>
 </aside>
 
@@ -499,8 +507,84 @@ body{font-family:var(--font)}
       {% endif %}
     </div>
 
+    {% if user.role != 'superadmin' %}
+    <!-- SUPPORT (branch admin → owner) -->
+    <div id="support" class="tab-content">
+      <div class="card">
+        <h3 class="card-title">💬 Contact ShiftGuard Support</h3>
+        <div class="form-group"><label>Subject</label><input type="text" id="sup-subject" placeholder="What's this about?"></div>
+        <div class="form-group"><label>Message</label><textarea id="sup-message" rows="4" placeholder="Describe the issue..."></textarea></div>
+        <button class="btn btn-primary" onclick="sendSupport()">📤 Send</button>
+      </div>
+      <div class="card">
+        <h3 class="card-title">📜 My Messages</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Subject</th><th>Message</th><th>Status</th><th>Reply</th><th>Sent</th></tr></thead>
+          <tbody id="my-support-tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if user.role == 'superadmin' %}
+    <!-- OWNER OVERVIEW -->
+    <div id="owner" class="tab-content">
+      <div class="stat-grid">
+        <div class="stat-box"><div class="sico">🏢</div><div class="sval" id="o-branches">-</div><div class="slbl">Branches</div></div>
+        <div class="stat-box"><div class="sico">👥</div><div class="sval" id="o-employees">-</div><div class="slbl">Total Employees</div></div>
+        <div class="stat-box"><div class="sico">✅</div><div class="sval" id="o-checkedin">-</div><div class="slbl">Checked In Now</div></div>
+        <div class="stat-box"><div class="sico">📥</div><div class="sval" id="o-tickets">-</div><div class="slbl">Open Tickets</div></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">🏢 Branch Accounts</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Branch</th><th>Slug</th><th>Admin(s)</th><th>Employees</th><th>Checked In Now</th><th>Status</th></tr></thead>
+          <tbody id="owner-branch-tbody"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">🟢 Admins Currently Logged In</h3>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Username</th><th>Role</th><th>Branch</th><th>Last Active</th></tr></thead>
+          <tbody id="owner-active-tbody"><tr><td colspan="4" style="text-align:center;padding:2rem;color:#78909c">No admins active right now</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- OWNER INBOX -->
+    <div id="owner-inbox" class="tab-content">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <h3 class="card-title" style="margin:0">📥 Support Inbox</h3>
+          <select id="inbox-filter" onchange="loadOwnerInbox()">
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Branch</th><th>From</th><th>Subject</th><th>Message</th><th>Status</th><th>Received</th><th>Actions</th></tr></thead>
+          <tbody id="owner-inbox-tbody"><tr><td colspan="7" style="text-align:center;padding:2rem;color:#78909c">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 </main>
+</div>
+
+<!-- Resolve support ticket -->
+<div id="resolve-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>✅ Resolve Ticket</h3><button class="modal-close" onclick="closeM('resolve-modal')">&times;</button></div>
+  <input type="hidden" id="resolve-id">
+  <div class="form-group"><label>Reply (optional)</label><textarea id="resolve-reply" rows="3" placeholder="Let them know how it was handled..."></textarea></div>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('resolve-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="confirmResolve()">✅ Mark Resolved</button>
+  </div>
+</div>
 </div>
 
 <!-- MODALS -->

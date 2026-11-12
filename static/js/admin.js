@@ -40,6 +40,7 @@ function thumb(url,id,field){
   if(!url)return'<span class="no-photo">—</span>';
   return'<img class="photo-thumb" src="'+url+'" onclick="showLightbox(\''+url+'\')" alt="photo"><button class="btn btn-danger btn-xs" style="margin-left:.2rem" onclick="delPhoto('+id+',\''+field+'\')">🗑</button>';
 }
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function showLightbox(src){document.getElementById('lb-img').src=src;document.getElementById('lightbox').classList.add('open');}
 function setBranch(v){gBranch=v;loadDashboard();loadEmployees();}
 function openM(id){var m=document.getElementById(id);if(m)m.classList.add('open');}
@@ -60,6 +61,9 @@ function switchTab(name){
   if(name==='security'){loadWifi();loadBlocked();loadNetworkInfo();loadNextDNS();}
   if(name==='settings'){loadAdmins();loadPhotoSettings();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
+  if(name==='support')loadMySupport();
+  if(name==='owner')loadOwnerOverview();
+  if(name==='owner-inbox')loadOwnerInbox();
 }
 
 function exportData(section,fmt,params){
@@ -563,6 +567,51 @@ async function saveAdmin(){
   var d=await api('/api/admin/users','POST',{username:gv('adm-u').trim(),password:gv('adm-pw'),role:gv('adm-role'),branch_id:gv('adm-branch')||null});
   if(d.success){msg('ok','Admin created');closeM('admin-modal');loadAdmins();}else msg('err',d.message);
 }
+// ── SUPPORT (branch admin) ──────────────────────────────────────────────────
+async function sendSupport(){
+  var subject=gv('sup-subject').trim();var message=gv('sup-message').trim();
+  if(!subject||!message)return msg('err','Subject and message are required');
+  var d=await api('/api/admin/support','POST',{subject:subject,message:message});
+  if(d.success){msg('ok',d.message);sv('sup-subject','');sv('sup-message','');loadMySupport();}else msg('err',d.message);
+}
+async function loadMySupport(){
+  var d=await api('/api/admin/support');var tb=document.getElementById('my-support-tbody');if(!tb)return;
+  var rows=d.messages||[];
+  tb.innerHTML=rows.length?rows.map(function(m){return'<tr><td>'+esc(m.subject)+'</td><td>'+esc(m.message)+'</td><td><span class="badge '+(m.status==='resolved'?'b-green':'b-yellow')+'">'+m.status+'</span></td><td>'+esc(m.reply||'—')+'</td><td style="font-size:.78rem">'+(m.created_at||'').substring(0,16)+'</td></tr>';}).join('')
+    :'<tr><td colspan="5" style="text-align:center;padding:2rem;color:#78909c">No messages yet</td></tr>';
+}
+
+// ── OWNER DASHBOARD ──────────────────────────────────────────────────────────
+async function loadOwnerOverview(){
+  var d=await api('/api/admin/owner/overview');
+  var t=d.totals||{};
+  document.getElementById('o-branches').textContent=t.branch_count||0;
+  document.getElementById('o-employees').textContent=t.employee_count||0;
+  document.getElementById('o-checkedin').textContent=t.checked_in_now||0;
+  document.getElementById('o-tickets').textContent=t.open_tickets||0;
+  var btb=document.getElementById('owner-branch-tbody');
+  btb.innerHTML=(d.branches||[]).map(function(b){return'<tr><td><strong>'+b.name+'</strong></td><td>'+(b.slug||'—')+'</td><td>'+(b.admins.join(', ')||'—')+'</td><td>'+b.employee_count+'</td><td>'+b.checked_in_now+'</td><td><span class="badge '+(b.is_active?'b-green':'b-red')+'">'+(b.is_active?'Active':'Inactive')+'</span></td></tr>';}).join('');
+  var atb=document.getElementById('owner-active-tbody');
+  var active=d.active_admins||[];
+  atb.innerHTML=active.length?active.map(function(a){return'<tr><td><strong>'+a.username+'</strong></td><td>'+a.role+'</td><td>'+(a.branch_name||'All')+'</td><td style="font-size:.78rem">'+(a.last_seen||'').substring(0,16)+'</td></tr>';}).join('')
+    :'<tr><td colspan="4" style="text-align:center;padding:2rem;color:#78909c">No admins active right now</td></tr>';
+}
+
+async function loadOwnerInbox(){
+  var status=gv('inbox-filter');
+  var d=await api('/api/admin/owner/inbox'+(status?'?status='+status:''));
+  var tb=document.getElementById('owner-inbox-tbody');
+  var rows=d.messages||[];
+  tb.innerHTML=rows.length?rows.map(function(m){return'<tr><td>'+esc(m.branch_name||'—')+'</td><td>'+esc(m.username)+'</td><td>'+esc(m.subject)+'</td><td>'+esc(m.message)+'</td><td><span class="badge '+(m.status==='resolved'?'b-green':'b-yellow')+'">'+m.status+'</span></td><td style="font-size:.78rem">'+(m.created_at||'').substring(0,16)+'</td><td>'+(m.status==='open'?'<button class="btn btn-primary btn-xs" onclick="openResolve('+m.id+')">✅ Resolve</button>':(m.reply?'Replied: '+esc(m.reply):'—'))+'</td></tr>';}).join('')
+    :'<tr><td colspan="7" style="text-align:center;padding:2rem;color:#78909c">No messages</td></tr>';
+}
+function openResolve(id){sv('resolve-id',id);sv('resolve-reply','');openM('resolve-modal');}
+async function confirmResolve(){
+  var id=gv('resolve-id');var reply=gv('resolve-reply').trim();
+  var d=await api('/api/admin/owner/inbox/'+id+'/resolve','POST',{reply:reply||null});
+  if(d.success){msg('ok',d.message);closeM('resolve-modal');loadOwnerInbox();}else msg('err',d.message);
+}
+
 async function doLogout(){
   if(!confirm('Logout?'))return;
   await api('/admin/logout','POST');location.href='/admin/login';

@@ -173,6 +173,17 @@ def init_db():
             UNIQUE(employee_id, year, month),
             FOREIGN KEY (employee_id) REFERENCES employees(id)
         );
+        CREATE TABLE IF NOT EXISTS support_messages (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id   INTEGER,
+            username    TEXT NOT NULL,
+            subject     TEXT NOT NULL,
+            message     TEXT NOT NULL,
+            status      TEXT DEFAULT 'open',
+            reply       TEXT,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP
+        );
         ''')
         c.commit()
         if not q('SELECT id FROM branches LIMIT 1'):
@@ -202,6 +213,7 @@ def init_db():
         ('check_in_ip',  'TEXT'),
         ('check_out_ip', 'TEXT'),
     ])
+    _ensure_columns('admin_users', [('last_seen', 'TIMESTAMP')])
     _migrate_multi_branch()
 
 def _migrate_multi_branch():
@@ -946,3 +958,74 @@ def change_password(username, current_pw, new_pw):
 
 def get_all_admins():
     return q('SELECT id,username,role,branch_id,is_active,last_login FROM admin_users ORDER BY username')
+
+ACTIVE_WINDOW_MINUTES = 5
+
+def touch_admin_last_seen(username):
+    run('UPDATE admin_users SET last_seen=CURRENT_TIMESTAMP WHERE username=?', (username,))
+
+def get_active_admins():
+    """Admins with API activity in the last ACTIVE_WINDOW_MINUTES — a heartbeat
+    proxy for "currently logged in" since Flask-Login sessions aren't tracked
+    server-side. Account info only (username/role/branch) — never employee data."""
+    return q(f'''SELECT a.username, a.role, a.branch_id, b.name as branch_name, a.last_seen
+                 FROM admin_users a LEFT JOIN branches b ON a.branch_id=b.id
+                 WHERE a.last_seen >= datetime('now', '-{ACTIVE_WINDOW_MINUTES} minutes')
+                 ORDER BY a.last_seen DESC''')
+
+def get_owner_overview():
+    """Aggregate, branch-level summary for the owner dashboard. Deliberately
+    returns counts only — never individual employee names, PINs, or other
+    personal data."""
+    today = date.today().isoformat()
+    branches = []
+    for b in get_branches(active_only=False):
+        emp_count = q('SELECT COUNT(*) as n FROM employees WHERE branch_id=? AND is_active=1', (b['id'],))[0]['n']
+        checked_in_now = q('''SELECT COUNT(*) as n FROM attendance
+                              WHERE branch_id=? AND date=? AND check_in IS NOT NULL AND check_out IS NULL''',
+                           (b['id'], today))[0]['n']
+        admins = [a['username'] for a in q(
+            "SELECT username FROM admin_users WHERE branch_id=? AND is_active=1", (b['id'],))]
+        branches.append({
+            'id': b['id'], 'name': b['name'], 'slug': b['slug'],
+            'is_active': b['is_active'], 'employee_count': emp_count,
+            'checked_in_now': checked_in_now, 'admins': admins,
+        })
+    total_employees = q('SELECT COUNT(*) as n FROM employees WHERE is_active=1')[0]['n']
+    total_checked_in_now = q('''SELECT COUNT(*) as n FROM attendance
+                                WHERE date=? AND check_in IS NOT NULL AND check_out IS NULL''', (today,))[0]['n']
+    open_tickets = q("SELECT COUNT(*) as n FROM support_messages WHERE status='open'")[0]['n']
+    return {
+        'branches': branches,
+        'totals': {
+            'branch_count': len(branches),
+            'employee_count': total_employees,
+            'checked_in_now': total_checked_in_now,
+            'open_tickets': open_tickets,
+        },
+        'active_admins': get_active_admins(),
+    }
+
+# ── SUPPORT INBOX ──────────────────────────────────────────────────────────────
+def create_support_message(branch_id, username, subject, message):
+    return run('''INSERT INTO support_messages (branch_id,username,subject,message)
+                  VALUES (?,?,?,?)''', (branch_id, username, subject.strip(), message.strip()))
+
+def get_support_messages(status=None):
+    """All messages, newest first — for the owner's inbox."""
+    if status:
+        return q('''SELECT s.*, b.name as branch_name FROM support_messages s
+                    LEFT JOIN branches b ON s.branch_id=b.id
+                    WHERE s.status=? ORDER BY s.created_at DESC''', (status,))
+    return q('''SELECT s.*, b.name as branch_name FROM support_messages s
+                LEFT JOIN branches b ON s.branch_id=b.id ORDER BY s.created_at DESC''')
+
+def get_my_support_messages(username):
+    return q('SELECT * FROM support_messages WHERE username=? ORDER BY created_at DESC', (username,))
+
+def resolve_support_message(mid, reply=None):
+    if reply is not None:
+        run("UPDATE support_messages SET status='resolved', reply=?, resolved_at=CURRENT_TIMESTAMP WHERE id=?",
+            (reply.strip(), mid))
+    else:
+        run("UPDATE support_messages SET status='resolved', resolved_at=CURRENT_TIMESTAMP WHERE id=?", (mid,))
