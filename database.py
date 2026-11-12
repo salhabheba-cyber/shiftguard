@@ -293,7 +293,7 @@ def get_theme():
         # Public pages (home, owner dashboard) use the standard ShiftGuard look.
         return dict(config.DEFAULT_THEME)
     return {k: get_setting(f'theme_{k}', config.DEFAULT_THEME.get(k,''))
-            for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']}
+            for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode','logo_url']}
 
 OLD_DEFAULT_THEMES = [
     {'primary':'00A8A8','secondary':'E8F8F8','accent':'2ab3b8','dark':'1c3a3b','text':'2d4a4b','font':'Segoe UI'},   # teal

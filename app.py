@@ -808,6 +808,48 @@ def api_save_theme():
         if k in d: database.set_setting(f'theme_{k}', str(d[k]).replace('#',''))
     return jsonify({'success':True,'message':'Theme saved'})
 
+ALLOWED_LOGO_TYPES = {'image/png':'png','image/jpeg':'jpg','image/svg+xml':'svg','image/webp':'webp'}
+
+@app.route('/api/admin/theme/logo', methods=['POST'])
+@api_login_required
+def api_save_logo():
+    d     = request.get_json(silent=True) or {}
+    image = d.get('image') or ''
+    m = re.match(r'^data:(image/[\w+.-]+);base64,(.+)$', image, re.DOTALL)
+    if not m or m.group(1) not in ALLOWED_LOGO_TYPES:
+        return jsonify({'success':False,'message':'Upload a PNG, JPEG, WEBP or SVG image'}), 400
+    ext = ALLOWED_LOGO_TYPES[m.group(1)]
+    try:
+        data = base64.b64decode(m.group(2))
+    except Exception:
+        return jsonify({'success':False,'message':'Could not read that image'}), 400
+    folder = os.path.join(config.BASE_DIR, 'static', 'logos')
+    os.makedirs(folder, exist_ok=True)
+    # Remove any previous logo for this account first, in case the extension changed.
+    for old_ext in ALLOWED_LOGO_TYPES.values():
+        old = os.path.join(folder, f"{g.account['slug']}.{old_ext}")
+        if os.path.isfile(old):
+            try: os.remove(old)
+            except OSError: pass
+    fname = f"{g.account['slug']}.{ext}"
+    with open(os.path.join(folder, fname), 'wb') as f:
+        f.write(data)
+    url = f"/static/logos/{fname}?v={int(datetime.now().timestamp())}"
+    database.set_setting('theme_logo_url', url)
+    return jsonify({'success':True,'message':'Logo saved','logo_url':url})
+
+@app.route('/api/admin/theme/logo', methods=['DELETE'])
+@api_login_required
+def api_remove_logo():
+    folder = os.path.join(config.BASE_DIR, 'static', 'logos')
+    for ext in ALLOWED_LOGO_TYPES.values():
+        p = os.path.join(folder, f"{g.account['slug']}.{ext}")
+        if os.path.isfile(p):
+            try: os.remove(p)
+            except OSError: pass
+    database.set_setting('theme_logo_url', '')
+    return jsonify({'success':True,'message':'Logo removed'})
+
 @app.route('/api/admin/change-password', methods=['POST'])
 @api_login_required
 def api_change_pw():

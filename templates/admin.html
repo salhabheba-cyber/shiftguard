@@ -26,7 +26,7 @@ body{font-family:var(--font)}
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <img src="/static/images/brand/shiftguard-mark.svg" class="sb-logo" alt="">
+    <img src="{{ theme.logo_url or '/static/images/brand/shiftguard-mark.svg' }}" class="sb-logo" alt="">
     <h2>{{ theme.logo_text }}</h2>
     <p>{{ account.name if account.name|lower != theme.logo_text|lower else "Management System" }}</p>
   </div>
@@ -63,7 +63,7 @@ body{font-family:var(--font)}
 <!-- MAIN -->
 <main class="admin-main">
   <div class="topbar">
-    <h1><img src="/static/images/brand/shiftguard-mark.svg" alt="">{{ theme.logo_text }}</h1>
+    <h1><img src="{{ theme.logo_url or '/static/images/brand/shiftguard-mark.svg' }}" alt="">{{ theme.logo_text }}</h1>
     <div class="topbar-right">
       <label style="font-size:.82rem">Branch:</label>
       <select class="branch-filter" id="g-branch" onchange="setBranch(this.value)">
@@ -416,6 +416,17 @@ body{font-family:var(--font)}
 
       <div class="card">
         <h3 class="card-title">🎨 Theme Customization</h3>
+        <div class="form-group">
+          <label>Logo</label>
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <img id="th-logo-preview" src="{{ theme.logo_url or '/static/images/brand/shiftguard-mark.svg' }}"
+                 alt="" style="width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid #e2e8f0;background:#fff">
+            <input type="file" id="th-logo-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none">
+            <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('th-logo-file').click()">📤 Upload Logo</button>
+            <button class="btn btn-outline btn-sm" type="button" id="th-logo-remove" onclick="removeLogo()" {% if not theme.logo_url %}style="display:none"{% endif %}>🗑 Remove</button>
+          </div>
+          <p style="color:#64748B;font-size:.8rem;margin-top:.4rem">PNG, JPEG, WEBP or SVG, up to 5MB. Leave unset to use the ShiftGuard mark.</p>
+        </div>
         <div class="form-row">
           <div class="form-group"><label>Primary Color</label>
             <div class="color-row">

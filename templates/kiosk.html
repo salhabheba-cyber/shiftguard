@@ -30,7 +30,7 @@
 
   <!-- HEADER -->
   <header class="kiosk-header">
-    <img src="/static/images/brand/shiftguard-mark.svg" class="kiosk-logo" alt="">
+    <img src="{{ theme.logo_url or '/static/images/brand/shiftguard-mark.svg' }}" class="kiosk-logo" alt="">
     <h1>{{ theme.logo_text }}</h1>
     <div class="kiosk-sub">Employee Attendance System</div>
     <div class="kiosk-clock" id="clock">00:00:00</div>

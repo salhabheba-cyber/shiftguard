@@ -111,4 +111,5 @@ DEFAULT_THEME = {
     'font':      'Inter',
     'logo_text': 'ShiftGuard',
     'dark_mode': '0',
+    'logo_url':  '',
 }

@@ -496,6 +496,32 @@ async function saveTheme(){
   var d=await api('/api/admin/theme','POST',payload);
   if(d.success){msg('ok','Theme saved! Refreshing...');setTimeout(function(){location.reload();},1200);}else msg('err',d.message);
 }
+document.addEventListener('DOMContentLoaded',function(){
+  var logoFile=document.getElementById('th-logo-file');
+  if(logoFile)logoFile.addEventListener('change',function(){
+    var file=this.files && this.files[0];if(!file)return;
+    if(file.size>5*1024*1024){msg('err','Logo must be under 5MB');this.value='';return;}
+    var reader=new FileReader();
+    reader.onload=async function(){
+      var d=await api('/api/admin/theme/logo','POST',{image:reader.result});
+      if(d.success){
+        document.getElementById('th-logo-preview').src=d.logo_url;
+        document.getElementById('th-logo-remove').style.display='';
+        msg('ok','Logo saved');
+      } else msg('err',d.message);
+      logoFile.value='';
+    };
+    reader.readAsDataURL(file);
+  });
+});
+async function removeLogo(){
+  var d=await api('/api/admin/theme/logo','DELETE');
+  if(d.success){
+    document.getElementById('th-logo-preview').src='/static/images/brand/shiftguard-mark.svg';
+    document.getElementById('th-logo-remove').style.display='none';
+    msg('ok','Logo removed');
+  } else msg('err',d.message);
+}
 async function changePw(){
   var cur=gv('pw-cur'),nw=gv('pw-new'),cfm=gv('pw-cfm');
   if(!cur||!nw||!cfm)return msg('err','All fields required');
