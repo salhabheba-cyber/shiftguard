@@ -118,6 +118,17 @@ def init_platform():
              (config.OWNER_EMAIL.strip().lower(), 'Owner', database.hash_pw(config.OWNER_PASSWORD), 1 if default else 0))
         logger.warning(f"Owner login created: {config.OWNER_EMAIL}"
                        + (" / owner12345 (change it after signing in)" if default else ""))
+    elif config.OWNER_RESET:
+        # The block above only ever runs once, the very first time the
+        # platform boots — changing OWNER_EMAIL/OWNER_PASSWORD afterwards
+        # normally has no effect on the already-stored owner login. Setting
+        # OWNER_RESET forces the stored login to match them. Meant to be
+        # turned back off once sign-in is confirmed, so a password changed
+        # later from the owner dashboard isn't silently overwritten by a
+        # stale environment variable on some future deploy.
+        _run('UPDATE owners SET email=?, password_hash=?, must_change=0 WHERE id=(SELECT MIN(id) FROM owners)',
+             (config.OWNER_EMAIL.strip().lower(), database.hash_pw(config.OWNER_PASSWORD)))
+        logger.warning(f"Owner login reset via OWNER_RESET to: {config.OWNER_EMAIL}")
 
     rebuild_index()
 

@@ -27,6 +27,9 @@ LEGACY_ACCOUNT_NAME = os.getenv('LEGACY_ACCOUNT_NAME', 'MySpa')
 # dashboard asks you to change the password on first sign-in.
 OWNER_EMAIL    = os.getenv('OWNER_EMAIL', 'owner@shiftguard.app')
 OWNER_PASSWORD = os.getenv('OWNER_PASSWORD', 'owner12345')
+# Set OWNER_RESET=1 to force the already-stored owner login to match
+# OWNER_EMAIL/OWNER_PASSWORD on next boot, then turn it back off.
+OWNER_RESET    = os.getenv('OWNER_RESET', '').strip().lower() in ('1', 'true', 'yes')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
 
 def _secret_key():
