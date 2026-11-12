@@ -15,6 +15,9 @@ h1{color:#{{ theme.primary }};font-size:1.5rem;font-weight:300;letter-spacing:3p
 .fg label{display:block;margin-bottom:.3rem;font-weight:600;color:#2d4a4b;font-size:.86rem}
 .fg input{width:100%;padding:.8rem;border:1.5px solid #c8e8e8;border-radius:8px;font-size:.95rem;outline:none;transition:.2s}
 .fg input:focus{border-color:#{{ theme.primary }};box-shadow:0 0 0 3px rgba(0,168,168,.12)}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:2.6rem}
+.pw-eye{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);cursor:pointer;background:none;border:none;font-size:1.1rem;line-height:1;padding:.2rem;color:#78909c;user-select:none}
 .btn{width:100%;padding:.9rem;background:#{{ theme.primary }};color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;letter-spacing:.5px;transition:.2s;margin-top:.3rem}
 .btn:hover{background:#{{ theme.accent }};transform:translateY(-1px)}
 .err{background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:.8rem;border-radius:8px;margin-bottom:1rem;display:none;font-size:.87rem}
@@ -31,12 +34,24 @@ h1{color:#{{ theme.primary }};font-size:1.5rem;font-weight:300;letter-spacing:3p
   <div class="err" id="err"></div>
   <form id="frm">
     <div class="fg"><label>Username</label><input type="text" id="u" placeholder="admin" autofocus></div>
-    <div class="fg"><label>Password</label><input type="password" id="p" placeholder="••••••••"></div>
+    <div class="fg"><label>Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="p" placeholder="••••••••">
+        <button type="button" class="pw-eye" onclick="togglePw('p',this)" aria-label="Show password">👁</button>
+      </div>
+    </div>
     <button type="submit" class="btn">Login →</button>
   </form>
   <a href="/kiosk" class="kiosk-link">→ Go to Kiosk</a>
 </div>
 <script>
+function togglePw(id,btn){
+  const inp=document.getElementById(id);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.textContent=show?'🙈':'👁';
+  btn.setAttribute('aria-label',show?'Hide password':'Show password');
+}
 document.getElementById('frm').addEventListener('submit',async e=>{
   e.preventDefault();
   const err=document.getElementById('err');err.classList.remove('show');

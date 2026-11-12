@@ -20,6 +20,10 @@
   body{font-family:var(--font){% if theme.dark_mode == '1' %};filter:invert(1) hue-rotate(180deg){% endif %}}
   .signin-input{width:100%;padding:.85rem 1rem;font-size:1.05rem;border:1px solid #cfd8dc;
     border-radius:10px;margin-top:.7rem;box-sizing:border-box}
+  .pw-wrap{position:relative}
+  .pw-wrap .signin-input{padding-right:2.8rem}
+  .pw-eye{position:absolute;right:.6rem;top:calc(50% + .35rem);transform:translateY(-50%);
+    cursor:pointer;background:none;border:none;font-size:1.2rem;line-height:1;padding:.2rem;color:#78909c}
 </style>
 </head>
 <body>
@@ -52,8 +56,11 @@
       <h2>Sign In</h2>
       <input type="text" id="si-user" class="signin-input" placeholder="Username"
              autocomplete="off" autocorrect="off" autocapitalize="off">
-      <input type="password" id="si-pin" class="signin-input" maxlength="4" inputmode="numeric"
-             placeholder="4-digit PIN" autocomplete="off">
+      <div class="pw-wrap">
+        <input type="password" id="si-pin" class="signin-input" maxlength="4" inputmode="numeric"
+               placeholder="4-digit PIN" autocomplete="off">
+        <button type="button" class="pw-eye" onclick="togglePin()" aria-label="Show PIN">👁</button>
+      </div>
       <button class="btn-action btn-checkin" style="width:100%;margin-top:.8rem" onclick="doSignIn()">Sign In</button>
     </div>
 
@@ -139,6 +146,13 @@ async function refreshCnt(){
 setInterval(refreshCnt,10000);
 
 // ── SIGN IN ──────────────────────────────────────────────────────────────────
+function togglePin(){
+  const inp=document.getElementById('si-pin');
+  const btn=document.querySelector('.pw-eye');
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  if(btn){btn.textContent=show?'🙈':'👁';btn.setAttribute('aria-label',show?'Hide PIN':'Show PIN');}
+}
 async function doSignIn(){
   const username=document.getElementById('si-user').value.trim();
   const p=document.getElementById('si-pin').value.trim();
@@ -280,7 +294,8 @@ function reset(){
   show('s-camera',false);show('s-result',false);
   clearErr();
   document.getElementById('si-user').value='';
-  document.getElementById('si-pin').value='';
+  const pinInp=document.getElementById('si-pin');pinInp.value='';pinInp.type='password';
+  const eyeBtn=document.querySelector('.pw-eye');if(eyeBtn){eyeBtn.textContent='👁';eyeBtn.setAttribute('aria-label','Show PIN');}
   document.getElementById('cam-preview').style.display='block';
 }
 
