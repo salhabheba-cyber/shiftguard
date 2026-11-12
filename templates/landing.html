@@ -89,18 +89,38 @@ img,svg{display:block}
 @keyframes float{0%,100%{transform:translateY(-10px)}50%{transform:translateY(12px)}}
 .sway{transform-style:preserve-3d;animation:sway 14s ease-in-out infinite}
 @keyframes sway{0%,100%{transform:rotateY(-14deg) rotateX(5deg)}50%{transform:rotateY(14deg) rotateX(-2deg)}}
-.word{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx)) rotateY(var(--ry));transition:transform .5s cubic-bezier(.2,.7,.2,1);
+.word{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx)) rotateY(var(--ry));transition:transform .4s cubic-bezier(.2,.7,.2,1);
   font-family:var(--display);font-weight:800;font-style:italic;font-size:clamp(3.1rem,11.5vw,9.5rem);letter-spacing:-.03em;line-height:1;white-space:nowrap}
 .layer{position:absolute;inset:0;color:var(--c);user-select:none}
 .face{position:relative;display:block;color:#fff;text-shadow:0 0 30px rgba(96,140,255,.35)}
 .face .g{background:linear-gradient(100deg,#FFB067 0%,#FF6A00 40%,#FFA24A 55%,#FF6A00 70%);background-size:250% 100%;
   -webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 5s linear infinite;text-shadow:none}
 @keyframes shine{0%{background-position:120% 0}100%{background-position:-120% 0}}
+/* Chromatic-split ghost layers for a holographic edge. */
+.face::before,.face::after{content:attr(data-text);position:absolute;inset:0;mix-blend-mode:screen;pointer-events:none}
+.face::before{color:#3ad6ff;animation:chroma-b 5s ease-in-out infinite}
+.face::after{color:#ff3ad6;animation:chroma-a 5s ease-in-out infinite}
+@keyframes chroma-b{0%,86%,100%{opacity:.3;transform:translate(-2px,0)}90%{opacity:.6;transform:translate(-5px,1px)}94%{opacity:.15;transform:translate(1px,-1px)}}
+@keyframes chroma-a{0%,86%,100%{opacity:.3;transform:translate(2px,0)}90%{opacity:.6;transform:translate(5px,-1px)}94%{opacity:.15;transform:translate(-1px,1px)}}
+/* Scanline sweeping across the word, like a hologram rendering in. */
+.scan{position:absolute;left:-4%;right:-4%;height:3px;top:-6%;background:linear-gradient(90deg,transparent,rgba(130,205,255,.95),transparent);
+  filter:blur(1px);mix-blend-mode:screen;pointer-events:none;animation:scan 3.6s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes scan{0%{top:-6%;opacity:0}10%{opacity:1}88%{opacity:1}100%{top:106%;opacity:0}}
 .mark3d{position:absolute;width:clamp(70px,9vw,120px);top:2%;left:50%;transform:translateX(-50%);filter:drop-shadow(0 0 24px rgba(255,106,0,.45));animation:spin 9s ease-in-out infinite}
 @keyframes spin{0%,100%{transform:translateX(-50%) rotateY(-25deg) translateY(0)}50%{transform:translateX(-50%) rotateY(25deg) translateY(-8px)}}
 .halo{position:absolute;left:50%;top:58%;width:min(72vw,780px);height:min(9vw,90px);transform:translate(-50%,0);border-radius:50%;
   background:radial-gradient(closest-side,rgba(59,130,246,.55),rgba(255,106,0,.18) 60%,transparent);filter:blur(14px);animation:halo 7s ease-in-out infinite}
 @keyframes halo{0%,100%{opacity:.9;transform:translate(-50%,0) scale(1)}50%{opacity:.55;transform:translate(-50%,0) scale(.86)}}
+/* HUD radar ring behind the word. */
+.hud-ring{position:absolute;left:50%;top:50%;width:min(90vw,600px);height:min(90vw,600px);transform:translate(-50%,-50%);opacity:.5;pointer-events:none}
+.hud-ring .ring-outer{transform-origin:100px 100px;animation:ringspin 26s linear infinite}
+.hud-ring .ring-inner{transform-origin:100px 100px;animation:ringspin 40s linear infinite reverse}
+@keyframes ringspin{to{transform:rotate(360deg)}}
+/* Rising data particles. */
+.particles{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.particle{position:absolute;bottom:10%;width:3px;height:3px;border-radius:50%;
+  background:radial-gradient(circle,#bfe6ff 0%,rgba(159,216,255,0) 70%);opacity:0;animation:rise linear infinite}
+@keyframes rise{0%{transform:translateY(0);opacity:0}10%{opacity:.9}85%{opacity:.4}100%{transform:translateY(-230px);opacity:0}}
 /* floating glass cards */
 .chip{position:absolute;display:flex;align-items:center;gap:.6rem;padding:.65rem .85rem;border-radius:14px;font-size:.8rem;text-align:left;
   background:rgba(12,24,58,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(147,164,200,.25);
@@ -176,6 +196,8 @@ h2.title{font:700 clamp(1.6rem,3vw,2.4rem)/1.2 var(--display);color:#fff;letter-
   border:1px solid rgba(147,164,200,.25)}
 footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--mut);font-size:.85rem}
 footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.owner-aside{color:var(--mut);font-size:.8rem;text-decoration:none;opacity:.75;transition:.2s}
+.owner-aside:hover{opacity:1;color:#fff}
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
 /* Higher specificity than .reveal alone, so a card's own hover-tilt speed wins once revealed. */
@@ -239,10 +261,13 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   section.block{padding:3.5rem 0}.panel{padding:2rem 1.3rem 1.6rem}
 }
 @media (prefers-reduced-motion:reduce){
-  .float,.sway,.face .g,.halo,.chip,.mark3d,.orb,.floor,.bg::after,.btn-lg.btn-o::before{animation:none}.sway{transform:rotateY(-10deg) rotateX(4deg)}
+  .float,.sway,.face .g,.halo,.chip,.mark3d,.orb,.floor,.bg::after,.btn-lg.btn-o::before,
+  .face::before,.face::after,.hud-ring .ring-outer,.hud-ring .ring-inner{animation:none}
+  .sway{transform:rotateY(-10deg) rotateX(4deg)}
   .reveal{opacity:1;transform:none;transition:none}
   .hero-rise{opacity:1!important;transform:none!important;transition:none!important}
   .nav,.nav .wrap,.card{transition:none}
+  .scan,.particles{display:none}
 }
 </style>
 </head>
@@ -270,8 +295,16 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       <span class="pill hero-rise"><b>NEW</b> AI assistant built into every account</span>
       <div class="stage hero-rise" aria-hidden="true">
         <div class="halo"></div>
+        <svg class="hud-ring" viewBox="0 0 200 200">
+          <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#FF8A1F"/><stop offset="100%" stop-color="#3B82F6"/>
+          </linearGradient></defs>
+          <g class="ring-outer"><circle cx="100" cy="100" r="92" fill="none" stroke="url(#ringGrad)" stroke-width="1.4" stroke-dasharray="5 9"/></g>
+          <g class="ring-inner"><circle cx="100" cy="100" r="76" fill="none" stroke="rgba(147,164,200,.4)" stroke-width="1" stroke-dasharray="2 12"/></g>
+        </svg>
+        <div class="particles"></div>
         <img class="mark3d" src="/static/images/brand/shiftguard-mark.svg" alt="">
-        <div class="float"><div class="sway"><div class="word" id="word"><span class="face" id="face">Shift<span class="g">Guard</span></span></div></div></div>
+        <div class="float"><div class="sway"><div class="word" id="word"><span class="face" id="face" data-text="ShiftGuard">Shift<span class="g">Guard</span></span><div class="scan"></div></div></div></div>
         <div class="chip c1"><i>✅</i><div><b>Rana checked in</b><small>08:57 · photo verified</small></div></div>
         <div class="chip c2"><i>💰</i><div><b>Payroll ready</b><small>November · 24 staff</small></div></div>
         <div class="chip c3"><i>✨</i><div><b>AI: 2 late today</b><small>Maya +12 min · Omar +5 min</small></div></div>
@@ -345,7 +378,11 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
 </main>
 
 <footer><div class="wrap"><a class="brand" href="/"><img src="/static/images/brand/shiftguard-mark.svg" alt="" style="width:30px;height:30px"><b style="font-size:1.1rem">Shift<span>Guard</span></b></a>
-  <span>© {{ year }} ShiftGuard · Attendance · Payroll · Security</span></div></footer>
+  <div style="display:flex;align-items:center;gap:1.3rem;flex-wrap:wrap">
+    <span>© {{ year }} ShiftGuard · Attendance · Payroll · Security</span>
+    <a href="#" id="owner-link" class="owner-aside">👑 Owner sign in</a>
+  </div>
+</div></footer>
 
 <div class="veil" id="veil" role="dialog" aria-modal="true" aria-labelledby="panel-title">
   <div class="panel">
@@ -402,6 +439,22 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       </div>
       <button class="out" type="button" id="signout">Sign out</button>
     </section>
+
+    <!-- Owner sign in (separate from business sign in) -->
+    <section id="v-owner" hidden>
+      <img class="pmark" src="/static/images/brand/shiftguard-mark.svg" alt="">
+      <h2>👑 Owner</h2>
+      <p class="psub">Platform owner sign in</p>
+      <div class="err" id="err-owner" role="alert"></div>
+      <form id="frm-owner" novalidate>
+        <div class="fg"><label for="owner-email">Email</label>
+          <input id="owner-email" name="email" type="email" autocomplete="username" placeholder="owner@shiftguard.app" required></div>
+        <div class="fg"><label for="owner-pw">Password</label>
+          <input id="owner-pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
+        <button class="go" type="submit" id="go-owner">Sign in as owner</button>
+      </form>
+      <button class="out" type="button" id="owner-back">← Business sign in</button>
+    </section>
   </div>
 </div>
 
@@ -432,9 +485,21 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   if (!reduce) {
     addEventListener('pointermove', function(e){
       var x = e.clientX / innerWidth - .5, y = e.clientY / innerHeight - .5;
-      root.style.setProperty('--ry', (x * 22).toFixed(2) + 'deg');
-      root.style.setProperty('--rx', (10 - y * 16).toFixed(2) + 'deg');
+      root.style.setProperty('--ry', (x * 32).toFixed(2) + 'deg');
+      root.style.setProperty('--rx', (10 - y * 24).toFixed(2) + 'deg');
     });
+    // Rising data particles behind the 3D word.
+    var pwrap = document.querySelector('.particles');
+    if (pwrap) {
+      for (var pi = 0; pi < 16; pi++) {
+        var p = document.createElement('span');
+        p.className = 'particle';
+        p.style.left = (Math.random() * 100).toFixed(1) + '%';
+        p.style.animationDuration = (5 + Math.random() * 4).toFixed(1) + 's';
+        p.style.animationDelay = (Math.random() * 6).toFixed(1) + 's';
+        pwrap.appendChild(p);
+      }
+    }
   }
   // Reveal sections as they scroll into view.
   var els = document.querySelectorAll('.reveal');
@@ -484,22 +549,33 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
 
   // Account panel.
   var veil = document.getElementById('veil'), btn = document.getElementById('acct-btn'), lastFocus = btn;
-  function open(){ lastFocus = document.activeElement || btn; veil.classList.add('open'); var f = document.querySelector('#v-signin:not([hidden]) #email'); if (f) setTimeout(function(){ f.focus(); }, 150); }
+  var signedIn = {{ 'true' if user else 'false' }};
+  function showPane(name){ // 'signin' | 'choose' | 'owner'
+    document.getElementById('v-signin').hidden = name !== 'signin';
+    document.getElementById('v-choose').hidden = name !== 'choose';
+    document.getElementById('v-owner').hidden  = name !== 'owner';
+  }
+  function open(){ lastFocus = document.activeElement || btn; veil.classList.add('open'); var f = document.querySelector('#v-signin:not([hidden]) #email, #v-owner:not([hidden]) #owner-email'); if (f) setTimeout(function(){ f.focus(); }, 150); }
   function close(){ veil.classList.remove('open'); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
-  btn.addEventListener('click', function(){ open(); if (!document.getElementById('v-signin').hidden) tab(false); });
+  btn.addEventListener('click', function(){ open(); showPane(signedIn ? 'choose' : 'signin'); if (!signedIn) tab(false); });
   document.getElementById('close').addEventListener('click', close);
   veil.addEventListener('click', function(e){ if (e.target === veil) close(); });
   addEventListener('keydown', function(e){ if (e.key === 'Escape' && veil.classList.contains('open')) close(); });
-  document.querySelectorAll('[data-signup]').forEach(function(b){ b.addEventListener('click', function(){ open(); tab(true); }); });
-  document.querySelectorAll('[data-signin]').forEach(function(b){ b.addEventListener('click', function(){ open(); tab(false); }); });
+  document.querySelectorAll('[data-signup]').forEach(function(b){ b.addEventListener('click', function(){ open(); showPane('signin'); tab(true); }); });
+  document.querySelectorAll('[data-signin]').forEach(function(b){ b.addEventListener('click', function(){ open(); showPane('signin'); tab(false); }); });
   document.querySelectorAll('[data-ai]').forEach(function(b){ b.addEventListener('click', function(){
-    if (window.ShiftGuardAI) window.ShiftGuardAI.open(); else { open(); tab(true); }
+    if (window.ShiftGuardAI) window.ShiftGuardAI.open(); else { open(); showPane('signin'); tab(true); }
   }); });
+  document.getElementById('owner-link').addEventListener('click', function(e){
+    e.preventDefault(); open(); showPane('owner');
+    setTimeout(function(){ document.getElementById('owner-email').focus(); }, 160);
+  });
+  document.getElementById('owner-back').addEventListener('click', function(){ showPane('signin'); tab(false); });
 
-  function show(signedIn, who, kind, accName){
-    document.getElementById('v-signin').hidden = signedIn;
-    document.getElementById('v-choose').hidden = !signedIn;
-    document.getElementById('acct-label').textContent = signedIn ? who : 'Sign in';
+  function show(nowSignedIn, who, kind, accName){
+    signedIn = nowSignedIn;
+    showPane(nowSignedIn ? 'choose' : 'signin');
+    document.getElementById('acct-label').textContent = nowSignedIn ? who : 'Sign in';
     document.getElementById('who').textContent = who || '';
     document.getElementById('who-acc').textContent = accName ? ' · ' + accName : '';
     document.getElementById('c-owner').hidden = kind !== 'owner';
@@ -551,12 +627,29 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       var d = await r.json();
       if (d.success) {
         document.getElementById('pw').value = '';
-        if (d.kind === 'owner' && d.must_change) { location.href = '/owner'; return; }
-        show(true, d.username, d.kind, d.account);
+        // Straight to work: owners land on their dashboard, business accounts land on the kiosk.
+        location.href = d.kind === 'owner' ? '/owner' : '/kiosk';
+        return;
       }
       else { err.textContent = d.message || 'Invalid email or password'; err.classList.add('show'); }
     } catch (_) { err.textContent = 'Could not reach the server. Try again.'; err.classList.add('show'); }
     go.disabled = false; go.textContent = 'Sign in';
+  });
+
+  var errOwner = document.getElementById('err-owner'), goOwner = document.getElementById('go-owner');
+  document.getElementById('frm-owner').addEventListener('submit', async function(e){
+    e.preventDefault(); errOwner.classList.remove('show');
+    var email = document.getElementById('owner-email').value.trim(), pw = document.getElementById('owner-pw').value;
+    if (!email || !pw) { errOwner.textContent = 'Enter your email and password'; errOwner.classList.add('show'); return; }
+    goOwner.disabled = true; goOwner.textContent = 'Signing in…';
+    try {
+      var r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email: email, password: pw, owner_only: true})});
+      var d = await r.json();
+      if (d.success && d.kind === 'owner') { document.getElementById('owner-pw').value = ''; location.href = '/owner'; return; }
+      errOwner.textContent = (d && d.message) || 'Invalid email or password'; errOwner.classList.add('show');
+    } catch (_) { errOwner.textContent = 'Could not reach the server. Try again.'; errOwner.classList.add('show'); }
+    goOwner.disabled = false; goOwner.textContent = 'Sign in as owner';
   });
 
   document.getElementById('signout').addEventListener('click', async function(){

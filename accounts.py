@@ -203,10 +203,14 @@ def email_in_use(email, except_account=None, except_username=None):
 # ══════════════════════════════════════════════════════════════════════════════
 # SIGN-IN
 # ══════════════════════════════════════════════════════════════════════════════
-def authenticate(login, password):
+def authenticate(login, password, owner_only=False):
     """Find who is signing in. Returns (kind, record, account, error):
        ('owner', owner_row, None, None) | ('account', admin_row, account, None)
-       | (None, None, None, message)."""
+       | (None, None, None, message).
+       `owner_only` is set by the dedicated owner sign-in form: it never
+       falls through to an account match, so a business admin's valid
+       credentials typed into the wrong door are rejected the same as any
+       other invalid login, not quietly logged in as that business."""
     login = (login or '').strip()
     if not login or not password:
         return None, None, None, 'Enter your email and password'
@@ -216,6 +220,8 @@ def authenticate(login, password):
         if own and database.check_pw(own['password_hash'], password):
             _run('UPDATE owners SET last_login=? WHERE id=?', (_now(), own['id']))
             return 'owner', own, None, None
+        if owner_only:
+            return None, None, None, 'Invalid email or password'
         rows = _q('SELECT * FROM login_index WHERE lower(email)=lower(?)', (login,))
         pending = _q("SELECT * FROM accounts WHERE lower(contact_email)=lower(?) AND status IN ('pending','rejected')", (login,))
         for acc in pending:
@@ -223,6 +229,8 @@ def authenticate(login, password):
                 return None, None, None, ('Your account is waiting for approval. We will let you know once it is ready.'
                                           if acc['status'] == 'pending' else 'This sign-up request was not approved.')
     else:
+        if owner_only:
+            return None, None, None, 'Invalid email or password'
         rows = _q('SELECT * FROM login_index WHERE username=?', (login,))
 
     for r in rows:

@@ -365,7 +365,7 @@ def login_post():
     login = (d.get('email') or d.get('username') or '').strip()
     if _too_many_failures(ip):
         return jsonify({'success':False,'message':'Too many attempts. Please wait 15 minutes and try again.'}), 429
-    kind, rec, acc, err = accounts.authenticate(login, d.get('password',''))
+    kind, rec, acc, err = accounts.authenticate(login, d.get('password',''), owner_only=bool(d.get('owner_only')))
     if not kind:
         _record_failure(ip)
         accounts.log('login_fail', login, None, ip, err)
