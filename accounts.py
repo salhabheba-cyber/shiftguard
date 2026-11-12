@@ -130,6 +130,18 @@ def init_platform():
              (config.OWNER_EMAIL.strip().lower(), database.hash_pw(config.OWNER_PASSWORD)))
         logger.warning(f"Owner login reset via OWNER_RESET to: {config.OWNER_EMAIL}")
 
+    if config.SEED_FACEFIT and config.FACEFIT_ADMIN_PASSWORD and not email_in_use(config.FACEFIT_ADMIN_EMAIL):
+        aid, err = create_account('FaceFit Studio', '', config.FACEFIT_ADMIN_EMAIL, '', config.FACEFIT_ADMIN_PASSWORD)
+        if err:
+            logger.error(f"SEED_FACEFIT failed: {err}")
+        else:
+            acc = get_account(aid)
+            with database.using(db_path(acc)):
+                for k, v in {'primary':'FA4B13','secondary':'FFF0E8','accent':'FF7A45','dark':'3D1704',
+                             'text':'4A2A1A','font':'Poppins','logo_text':'FaceFit Studio','dark_mode':'0'}.items():
+                    database.set_setting(f'theme_{k}', v)
+            logger.warning(f"Seeded FaceFit Studio account ({config.FACEFIT_ADMIN_EMAIL})")
+
     rebuild_index()
 
 def first_account_id():

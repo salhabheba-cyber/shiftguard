@@ -30,6 +30,13 @@ OWNER_PASSWORD = os.getenv('OWNER_PASSWORD', 'owner12345')
 # Set OWNER_RESET=1 to force the already-stored owner login to match
 # OWNER_EMAIL/OWNER_PASSWORD on next boot, then turn it back off.
 OWNER_RESET    = os.getenv('OWNER_RESET', '').strip().lower() in ('1', 'true', 'yes')
+# One-time seed for the FaceFit Studio business account. Set SEED_FACEFIT=1
+# plus FACEFIT_ADMIN_PASSWORD (and optionally FACEFIT_ADMIN_EMAIL) to create
+# it on next boot; it's skipped if that email is already registered. Turn
+# SEED_FACEFIT back off once it's created.
+SEED_FACEFIT          = os.getenv('SEED_FACEFIT', '').strip().lower() in ('1', 'true', 'yes')
+FACEFIT_ADMIN_EMAIL    = os.getenv('FACEFIT_ADMIN_EMAIL', 'facefit@shiftguard.app')
+FACEFIT_ADMIN_PASSWORD = os.getenv('FACEFIT_ADMIN_PASSWORD', '')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
 
 def _secret_key():
