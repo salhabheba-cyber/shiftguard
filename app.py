@@ -130,6 +130,25 @@ def _client_ip():
 def _nextdns_config():
     return database.get_setting('nextdns_api_key', ''), database.get_setting('nextdns_profile_id', '')
 
+def _effective_branch_id():
+    """A superadmin can view/filter across any branch (None = all branches,
+    today's behavior). Every other role is always pinned to their own
+    branch, regardless of what a client might pass in — this is the actual
+    tenant boundary."""
+    if current_user.role == 'superadmin':
+        return None
+    return current_user.branch_id
+
+def _require_superadmin(f):
+    @wraps(f)
+    def dec(*a, **kw):
+        if not current_user.is_authenticated:
+            return jsonify({'success':False,'message':'Login required'}), 401
+        if current_user.role != 'superadmin':
+            return jsonify({'success':False,'message':'Superadmin access required'}), 403
+        return f(*a, **kw)
+    return dec
+
 # ══════════════════════════════════════════════════════════════════════════════
 # KIOSK
 # ══════════════════════════════════════════════════════════════════════════════
@@ -138,13 +157,27 @@ def home(): return redirect(url_for('kiosk'))
 
 @app.route('/kiosk')
 def kiosk():
-    theme    = database.get_theme()
-    branches = database.get_branches()
-    logs     = database.get_today_attendance()
-    checked  = len([l for l in logs if l['check_in'] and not l['check_out']])
-    today    = date.today().strftime('%A, %d %B %Y')
-    return render_template('kiosk.html', theme=theme, branches=branches,
+    theme   = database.get_theme()
+    logs    = database.get_today_attendance()
+    checked = len([l for l in logs if l['check_in'] and not l['check_out']])
+    today   = date.today().strftime('%A, %d %B %Y')
+    return render_template('kiosk.html', theme=theme,
                            checked_in_count=checked, today=today)
+
+@app.route('/api/kiosk/signin', methods=['POST'])
+def kiosk_signin():
+    d        = request.json or {}
+    username = (d.get('username') or '').strip()
+    pin      = str(d.get('pin','')).strip()
+    if not username or not pin:
+        return jsonify({'success':False,'message':'Username and PIN are required'}), 400
+    emp = database.get_employee_by_username(username)
+    if not emp or not database.verify_employee_pin(emp['id'], pin):
+        database.log_event('kiosk_signin_fail', username, _client_ip(), '')
+        return jsonify({'success':False,'message':'Invalid username or PIN'}), 401
+    return jsonify({'success':True,'employee':{
+        'id':emp['id'],'name':emp['name'],'position':emp['position'] or '',
+        'shift_start':emp['shift_start'],'shift_end':emp['shift_end']}})
 
 @app.route('/api/kiosk/search')
 def kiosk_search():
@@ -233,7 +266,7 @@ def logout():
 @app.route('/admin')
 @login_required
 def admin():
-    return render_template('admin.html', theme=database.get_theme(),
+    return render_template('admin.html', theme=database.get_theme(_effective_branch_id()),
                            branches=database.get_branches(), user=current_user)
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -241,7 +274,7 @@ def admin():
 @api_login_required
 def api_dashboard():
     _maybe_auto_purge_photos()
-    bid  = request.args.get('branch_id', type=int)
+    bid  = _effective_branch_id()
     logs = database.get_today_attendance(bid)
     emps = database.get_employees(active_only=True, branch_id=bid)
     checked_in  = [l for l in logs if l['check_in'] and not l['check_out']]
@@ -279,7 +312,7 @@ def api_attendance():
     start = request.args.get('start', (date.today()-timedelta(days=30)).isoformat())
     end   = request.args.get('end',   date.today().isoformat())
     eid   = request.args.get('employee_id', type=int)
-    bid   = request.args.get('branch_id',   type=int)
+    bid   = _effective_branch_id()
     logs  = database.get_attendance_range(start, end, eid, bid)
     return jsonify({'logs':[{
         'id':              l['id'],
@@ -338,7 +371,7 @@ def api_del_photo(rid):
 @app.route('/api/admin/employees', methods=['GET'])
 @api_login_required
 def api_employees():
-    bid  = request.args.get('branch_id', type=int)
+    bid  = _effective_branch_id()
     emps = database.get_employees(active_only=True, branch_id=bid)
     for e in emps: e.pop('pin_hash', None)
     return jsonify({'employees': emps})
@@ -352,16 +385,18 @@ def api_add_emp():
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
     if not pin or len(pin)!=4 or not pin.isdigit():
         return jsonify({'success':False,'message':'PIN must be exactly 4 digits'}), 400
+    branch_id = current_user.branch_id if current_user.role != 'superadmin' else int(d.get('branch_id') or 1)
     try:
         eid = database.add_employee(
             name=name, pin=pin,
             position=d.get('position') or None, phone=d.get('phone') or None,
-            branch_id=int(d.get('branch_id') or 1),
+            branch_id=branch_id,
             shift_start=d.get('shift_start','09:30'), shift_end=d.get('shift_end','18:30'),
             working_days=d.get('working_days','Mon,Tue,Wed,Thu,Fri,Sat'),
             salary_type=d.get('salary_type','monthly'),
             salary_amount=float(d.get('salary_amount') or 0),
-            hire_date=d.get('hire_date') or None)
+            hire_date=d.get('hire_date') or None,
+            username=d.get('username') or None)
         return jsonify({'success':True,'message':f'{name} added!','id':eid})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
@@ -372,8 +407,10 @@ def api_upd_emp(eid):
     d  = request.json or {}
     kw = {}
     for f in ['name','position','phone','branch_id','shift_start','shift_end',
-              'working_days','salary_type','salary_amount','hire_date','is_active']:
+              'working_days','salary_type','salary_amount','hire_date','is_active','username']:
         if f in d: kw[f] = d[f]
+    if current_user.role != 'superadmin':
+        kw.pop('branch_id', None)
     if 'pin' in d and d['pin']:
         pin = str(d['pin']).strip()
         if len(pin)!=4 or not pin.isdigit():
@@ -406,23 +443,31 @@ def api_branches():
     return jsonify({'branches': database.get_branches(active_only=False)})
 
 @app.route('/api/admin/branches', methods=['POST'])
-@api_login_required
+@_require_superadmin
 def api_add_branch():
     d    = request.json or {}
     name = (d.get('name') or '').strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
-    bid  = database.add_branch(name, d.get('address'), d.get('phone'))
+    try:
+        bid = database.add_branch(name, d.get('address'), d.get('phone'),
+                                  d.get('slug'), d.get('logo_url'))
+    except ValueError as e:
+        return jsonify({'success':False,'message':str(e)}), 400
     return jsonify({'success':True,'id':bid,'message':f'Branch "{name}" added'})
 
 @app.route('/api/admin/branches/<int:bid>', methods=['PUT'])
-@api_login_required
+@_require_superadmin
 def api_upd_branch(bid):
     d = request.json or {}
-    database.update_branch(bid, d.get('name',''), d.get('address'), d.get('phone'))
+    try:
+        database.update_branch(bid, d.get('name',''), d.get('address'), d.get('phone'),
+                               d.get('slug'), d.get('logo_url'))
+    except ValueError as e:
+        return jsonify({'success':False,'message':str(e)}), 400
     return jsonify({'success':True})
 
 @app.route('/api/admin/branches/<int:bid>', methods=['DELETE'])
-@api_login_required
+@_require_superadmin
 def api_del_branch(bid):
     database.delete_branch(bid)
     return jsonify({'success':True})
@@ -463,7 +508,8 @@ def api_mark_paid():
 @app.route('/api/admin/leave-types', methods=['GET'])
 @api_login_required
 def api_leave_types():
-    return jsonify({'leave_types': database.get_leave_types(active_only=False)})
+    bid = _effective_branch_id()
+    return jsonify({'leave_types': database.get_leave_types(active_only=False, branch_id=bid)})
 
 @app.route('/api/admin/leave-types', methods=['POST'])
 @api_login_required
@@ -471,8 +517,9 @@ def api_add_leave_type():
     d    = request.json or {}
     name = (d.get('name') or '').strip()
     if not name: return jsonify({'success':False,'message':'Name required'}), 400
+    branch_id = _effective_branch_id() or int(d.get('branch_id') or 1)
     try:
-        lid = database.add_leave_type(name, d.get('is_paid', 1), d.get('color'))
+        lid = database.add_leave_type(name, d.get('is_paid', 1), d.get('color'), branch_id=branch_id)
         return jsonify({'success':True,'id':lid,'message':f'Leave type "{name}" added'})
     except Exception as e:
         return jsonify({'success':False,'message':'That leave type already exists'}), 400
@@ -542,7 +589,7 @@ def api_del_leave(lid):
 def api_notes():
     year  = request.args.get('year',  type=int, default=date.today().year)
     month = request.args.get('month', type=int, default=date.today().month)
-    bid   = request.args.get('branch_id', type=int)
+    bid   = _effective_branch_id()
     emps  = database.get_employees_with_notes(year, month, bid)
     for e in emps: e.pop('pin_hash', None)
     return jsonify({'employees': emps, 'year': year, 'month': month})
@@ -561,14 +608,15 @@ def api_save_note():
 @app.route('/api/admin/blocked-sites', methods=['GET'])
 @api_login_required
 def api_blocked():
-    return jsonify({'sites': database.get_blocked_sites()})
+    return jsonify({'sites': database.get_blocked_sites(branch_id=_effective_branch_id())})
 
 @app.route('/api/admin/blocked-sites', methods=['POST'])
 @api_login_required
 def api_add_blocked():
-    d      = request.json or {}
-    domain = d.get('domain','').strip().lower()
-    ok     = database.add_blocked_site(domain, d.get('category','restricted'))
+    d         = request.json or {}
+    domain    = d.get('domain','').strip().lower()
+    branch_id = _effective_branch_id() or int(d.get('branch_id') or 1)
+    ok        = database.add_blocked_site(domain, d.get('category','restricted'), branch_id=branch_id)
     msg    = 'Added' if ok else 'Already exists'
     api_key, profile_id = _nextdns_config()
     if ok and api_key:
@@ -579,8 +627,10 @@ def api_add_blocked():
 @app.route('/api/admin/blocked-sites/<int:sid>', methods=['DELETE'])
 @api_login_required
 def api_del_blocked(sid):
-    sites  = {s['id']: s['domain'] for s in database.get_blocked_sites()}
+    sites  = {s['id']: s['domain'] for s in database.get_blocked_sites(branch_id=_effective_branch_id())}
     domain = sites.get(sid)
+    if not domain:
+        return jsonify({'success':False,'message':'Not found'}), 404
     database.remove_blocked_site(sid)
     api_key, profile_id = _nextdns_config()
     if domain and api_key:
@@ -591,7 +641,7 @@ def api_del_blocked(sid):
 @app.route('/api/admin/wifi-networks', methods=['GET'])
 @api_login_required
 def api_wifi_list():
-    return jsonify({'networks': database.get_wifi_networks()})
+    return jsonify({'networks': database.get_wifi_networks(branch_id=_effective_branch_id())})
 
 @app.route('/api/admin/wifi-networks', methods=['POST'])
 @api_login_required
@@ -600,13 +650,17 @@ def api_wifi_add():
     ssid = d.get('ssid','').strip()
     if not ssid:
         return jsonify({'success':False,'message':'Network name is required'}), 400
-    database.add_wifi_network(ssid, d.get('password',''), d.get('label',''))
-    database.log_event('wifi_added', current_user.username, _client_ip(), ssid)
+    branch_id = _effective_branch_id() or int(d.get('branch_id') or 1)
+    database.add_wifi_network(ssid, d.get('password',''), d.get('label',''), branch_id=branch_id)
+    database.log_event('wifi_added', current_user.username, _client_ip(), ssid, branch_id=branch_id)
     return jsonify({'success':True,'message':'Saved'})
 
 @app.route('/api/admin/wifi-networks/<int:wid>', methods=['DELETE'])
 @api_login_required
 def api_wifi_del(wid):
+    nets = {n['id'] for n in database.get_wifi_networks(branch_id=_effective_branch_id())}
+    if wid not in nets:
+        return jsonify({'success':False,'message':'Not found'}), 404
     database.remove_wifi_network(wid)
     return jsonify({'success':True})
 
@@ -687,14 +741,21 @@ def api_nextdns_sync():
 @app.route('/api/admin/theme', methods=['GET'])
 @api_login_required
 def api_get_theme():
-    return jsonify({'theme':database.get_theme()})
+    return jsonify({'theme':database.get_theme(_effective_branch_id())})
 
 @app.route('/api/admin/theme', methods=['POST'])
 @api_login_required
 def api_save_theme():
+    bid = _effective_branch_id()
+    if not bid:
+        return jsonify({'success':False,'message':'Select a specific branch first'}), 400
     d = request.json or {}
-    for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']:
-        if k in d: database.set_setting(f'theme_{k}', str(d[k]).replace('#',''))
+    updates = {}
+    for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode','logo_url']:
+        if k in d:
+            v = d[k]
+            updates[k] = v if k in ('font','logo_text','logo_url') else str(v).replace('#','')
+    database.save_theme(bid, updates)
     return jsonify({'success':True,'message':'Theme saved'})
 
 @app.route('/api/admin/change-password', methods=['POST'])
@@ -713,7 +774,7 @@ def api_users():
     return jsonify({'users':database.get_all_admins()})
 
 @app.route('/api/admin/users', methods=['POST'])
-@api_login_required
+@_require_superadmin
 def api_add_user():
     d = request.json or {}
     try:
@@ -804,7 +865,7 @@ EXPORT_MIME = {
 @api_login_required
 def api_daily_report(fmt='excel'):
     day = request.args.get('date', date.today().isoformat())
-    bid = request.args.get('branch_id', type=int)
+    bid = _effective_branch_id()
     return _make_report('daily', fmt, day=day, branch_id=bid)
 
 @app.route('/api/admin/report/monthly')
@@ -812,7 +873,7 @@ def api_daily_report(fmt='excel'):
 @api_login_required
 def api_monthly_report(fmt='excel'):
     month_str = request.args.get('month', date.today().strftime('%Y-%m'))
-    bid       = request.args.get('branch_id', type=int)
+    bid       = _effective_branch_id()
     return _make_report('monthly', fmt, month_str=month_str, branch_id=bid)
 
 def _daily_sections(day, branch_id=None):
@@ -904,7 +965,7 @@ def _make_report(rtype, fmt='excel', **kw):
 
 # ── GENERIC TABLE EXPORTS (Attendance / Employees / Salary / Leave / Notes) ────
 def _export_data(section):
-    bid = request.args.get('branch_id', type=int)
+    bid = _effective_branch_id()
 
     if section == 'attendance':
         start = request.args.get('start', (date.today()-timedelta(days=30)).isoformat())

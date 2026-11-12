@@ -18,6 +18,8 @@
     --font:'{{ theme.font }}','Segoe UI',sans-serif;
   }
   body{font-family:var(--font){% if theme.dark_mode == '1' %};filter:invert(1) hue-rotate(180deg){% endif %}}
+  .signin-input{width:100%;padding:.85rem 1rem;font-size:1.05rem;border:1px solid #cfd8dc;
+    border-radius:10px;margin-top:.7rem;box-sizing:border-box}
 </style>
 </head>
 <body>
@@ -25,7 +27,7 @@
 
   <!-- HEADER -->
   <header class="kiosk-header">
-    <img src="/static/images/myspa_logo.jpg" class="kiosk-logo" onerror="this.style.display='none'" alt="MySpa">
+    <img src="{{ theme.logo_url or '/static/images/myspa_logo.jpg' }}" class="kiosk-logo" onerror="this.style.display='none'" alt="Logo">
     <h1>{{ theme.logo_text }}</h1>
     <div class="kiosk-sub">Employee Attendance System</div>
     <div class="kiosk-clock" id="clock">00:00:00</div>
@@ -34,27 +36,25 @@
 
   <main class="kiosk-main">
 
-    {% if branches|length > 1 %}
-    <div style="width:100%;max-width:480px">
-      <select class="branch-sel" id="branch-sel" onchange="branchId=parseInt(this.value)||0">
-        {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-      </select>
-    </div>
-    {% endif %}
-
     <div class="stat-card">
       <div class="stat-num" id="cnt">{{ checked_in_count }}</div>
       <div class="stat-lbl">Employees Checked In</div>
     </div>
 
-    <!-- STEP 1: SEARCH -->
-    <div class="kiosk-card" id="s-search">
-      <h2>Select Your Name</h2>
-      <div class="search-wrap">
-        <input type="text" id="emp-search" class="search-input"
-               placeholder="Start typing your name..." autocomplete="off" autocorrect="off">
-        <div id="suggestions" class="suggestions"></div>
-      </div>
+    <!-- STEP 0: SIGN IN GATE -->
+    <div class="kiosk-card" id="s-gate">
+      <h2>Welcome</h2>
+      <button class="btn-action btn-checkin" style="width:100%" onclick="show('s-gate',false);show('s-signin',true)">🔐 Sign In</button>
+    </div>
+
+    <!-- STEP 1: SIGN IN (username + PIN) -->
+    <div class="kiosk-card" id="s-signin" style="display:none">
+      <h2>Sign In</h2>
+      <input type="text" id="si-user" class="signin-input" placeholder="Username"
+             autocomplete="off" autocorrect="off" autocapitalize="off">
+      <input type="password" id="si-pin" class="signin-input" maxlength="4" inputmode="numeric"
+             placeholder="4-digit PIN" autocomplete="off">
+      <button class="btn-action btn-checkin" style="width:100%;margin-top:.8rem" onclick="doSignIn()">Sign In</button>
     </div>
 
     <!-- STEP 2: ACTION -->
@@ -70,27 +70,7 @@
       </div>
     </div>
 
-    <!-- STEP 3: PIN -->
-    <div class="kiosk-card" id="s-pin" style="display:none">
-      <h2 id="pin-title">Enter Your PIN</h2>
-      <input type="password" id="pin-disp" class="pin-display" maxlength="4" readonly placeholder="••••">
-      <div class="pin-pad" style="max-width:280px;margin:0 auto">
-        <button class="pin-btn" onclick="pd('1')">1</button>
-        <button class="pin-btn" onclick="pd('2')">2</button>
-        <button class="pin-btn" onclick="pd('3')">3</button>
-        <button class="pin-btn" onclick="pd('4')">4</button>
-        <button class="pin-btn" onclick="pd('5')">5</button>
-        <button class="pin-btn" onclick="pd('6')">6</button>
-        <button class="pin-btn" onclick="pd('7')">7</button>
-        <button class="pin-btn" onclick="pd('8')">8</button>
-        <button class="pin-btn" onclick="pd('9')">9</button>
-        <button class="pin-btn del" onclick="pc()">⌫</button>
-        <button class="pin-btn" onclick="pd('0')">0</button>
-        <button class="pin-btn ok" id="ok-btn" onclick="submitPin()" disabled>✓</button>
-      </div>
-    </div>
-
-    <!-- STEP 4: CAMERA -->
+    <!-- STEP 3: CAMERA -->
     <div class="kiosk-card" id="s-camera" style="display:none">
       <div class="camera-section">
         <div class="camera-label" id="cam-label">📸 Smile! Photo in...</div>
@@ -104,7 +84,7 @@
       </div>
     </div>
 
-    <!-- STEP 5: RESULT -->
+    <!-- STEP 4: RESULT -->
     <div id="s-result" style="display:none;width:100%;max-width:480px">
       <div class="result-box" id="result-box">
         <div class="result-emoji" id="r-emoji">🌸</div>
@@ -135,7 +115,7 @@
 
 <script>
 // ── STATE ────────────────────────────────────────────────────────────────────
-let selId=null, selName='', action=null, pin='', branchId=0;
+let selId=null, selName='', action=null, pin='';
 let camStream=null, capturedPhoto=null;
 
 // ── CLOCK ────────────────────────────────────────────────────────────────────
@@ -151,62 +131,41 @@ setInterval(tick,1000); tick();
 // ── STATUS REFRESH ───────────────────────────────────────────────────────────
 async function refreshCnt(){
   try{
-    const r=await fetch('/api/kiosk/status'+(branchId?`?branch_id=${branchId}`:''));
+    const r=await fetch('/api/kiosk/status');
     const d=await r.json();
     document.getElementById('cnt').textContent=d.checked_in_count;
   }catch(e){}
 }
 setInterval(refreshCnt,10000);
 
-// ── SEARCH ───────────────────────────────────────────────────────────────────
-document.getElementById('emp-search').addEventListener('input', async e=>{
-  const q=e.target.value.trim();
-  const box=document.getElementById('suggestions');
-  if(!q){box.innerHTML='';return;}
-  const r=await fetch(`/api/kiosk/search?q=${encodeURIComponent(q)}`+(branchId?`&branch_id=${branchId}`:''));
-  const d=await r.json();
-  box.innerHTML=(d.employees||[]).map(em=>
-    `<div class="suggestion-item" onclick="selectEmp(${em.id},'${em.name.replace(/'/g,"\\'")}','${em.shift_start}','${em.shift_end}','${em.position||''}')">
-      <strong>${em.name}</strong>
-      <small>${em.position?em.position+' · ':''}${em.shift_start} – ${em.shift_end}</small>
-    </div>`).join('')||'<div style="padding:.9rem;color:#78909c">No results</div>';
-});
-
-function selectEmp(id,name,ss,se,pos){
-  selId=id; selName=name;
-  document.getElementById('sel-name').textContent=name;
-  document.getElementById('sel-shift').textContent=(pos?pos+' · ':'')+ss+' – '+se;
-  document.getElementById('suggestions').innerHTML='';
-  document.getElementById('emp-search').value='';
-  show('s-search',false); show('s-action',true);
+// ── SIGN IN ──────────────────────────────────────────────────────────────────
+async function doSignIn(){
+  const username=document.getElementById('si-user').value.trim();
+  const p=document.getElementById('si-pin').value.trim();
+  if(!username||p.length!==4){showErr('Enter your username and 4-digit PIN.');return;}
   clearErr();
+  try{
+    const r=await fetch('/api/kiosk/signin',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,pin:p})
+    });
+    const d=await r.json();
+    if(!d.success){showErr(d.message||'Invalid username or PIN.');return;}
+    selId=d.employee.id; selName=d.employee.name; pin=p;
+    document.getElementById('sel-name').textContent=selName;
+    document.getElementById('sel-shift').textContent=
+      (d.employee.position?d.employee.position+' · ':'')+d.employee.shift_start+' – '+d.employee.shift_end;
+    document.getElementById('si-user').value=''; document.getElementById('si-pin').value='';
+    show('s-signin',false); show('s-action',true);
+  }catch(e){
+    showErr('Network error. Please try again.');
+  }
 }
 
 // ── ACTION ───────────────────────────────────────────────────────────────────
 function chooseAction(a){
   action=a;
-  document.getElementById('pin-title').textContent=
-    a==='in'?'🌸 Check In — Enter PIN':'👋 Check Out — Enter PIN';
-  pin=''; upPin();
-  show('s-action',false); show('s-pin',true);
-}
-
-// ── PIN ──────────────────────────────────────────────────────────────────────
-function pd(d){if(pin.length<4){pin+=d;upPin();if(pin.length===4){document.getElementById('ok-btn').disabled=false;document.getElementById('ok-btn').classList.add('ready');}}}
-function pc(){pin='';upPin();document.getElementById('ok-btn').disabled=true;document.getElementById('ok-btn').classList.remove('ready');}
-function upPin(){document.getElementById('pin-disp').value='•'.repeat(pin.length);}
-
-document.addEventListener('keydown',e=>{
-  if(!show_s('s-pin')) return;
-  if(e.key>='0'&&e.key<='9') pd(e.key);
-  else if(e.key==='Backspace') pc();
-  else if(e.key==='Enter'&&pin.length===4) submitPin();
-});
-
-function submitPin(){
-  if(pin.length!==4) return;
-  clearErr();
-  show('s-pin',false);
+  show('s-action',false);
   startCamera();
 }
 
@@ -300,34 +259,28 @@ async function doCheckInOut(photoStatus){
       setTimeout(reset,5000);
     }else{
       showErr(d.message||'Error. Try again.');
-      pin='';upPin();
-      document.getElementById('ok-btn').disabled=true;
-      document.getElementById('ok-btn').classList.remove('ready');
-      show('s-pin',true);
+      show('s-action',true);
     }
   }catch(e){
     show('s-camera',false);
     showErr('Network error. Please try again.');
-    show('s-pin',true);
+    show('s-action',true);
   }
 }
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 function show(id,v){const el=document.getElementById(id);if(el)el.style.display=v?'block':'none';}
-function show_s(id){const el=document.getElementById(id);return el&&el.style.display!=='none';}
 function showErr(m){const el=document.getElementById('inline-err');el.textContent=m;el.style.display='block';}
 function clearErr(){const el=document.getElementById('inline-err');el.style.display='none';}
 
 function reset(){
   stopCamera();
   selId=null;selName='';action=null;pin='';capturedPhoto=null;
-  show('s-search',true);show('s-action',false);
-  show('s-pin',false);show('s-camera',false);show('s-result',false);
+  show('s-gate',true);show('s-signin',false);show('s-action',false);
+  show('s-camera',false);show('s-result',false);
   clearErr();
-  document.getElementById('emp-search').value='';
-  document.getElementById('suggestions').innerHTML='';
-  document.getElementById('ok-btn').disabled=true;
-  document.getElementById('ok-btn').classList.remove('ready');
+  document.getElementById('si-user').value='';
+  document.getElementById('si-pin').value='';
   document.getElementById('cam-preview').style.display='block';
 }
 

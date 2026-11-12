@@ -1,4 +1,4 @@
-import sqlite3, logging, calendar
+import sqlite3, logging, calendar, json, re
 from datetime import datetime, timedelta, date
 from contextlib import contextmanager
 import config
@@ -202,6 +202,117 @@ def init_db():
         ('check_in_ip',  'TEXT'),
         ('check_out_ip', 'TEXT'),
     ])
+    _migrate_multi_branch()
+
+def _migrate_multi_branch():
+    """One-time, idempotent migration that turns `branches` into a real
+    tenant boundary: adds slug/logo_url/theme_json, scopes blocked_sites/
+    wifi_networks/leave_types/access_logs to a branch, and carries MYSPA's
+    existing global theme into branch 1 so nothing visually changes for it.
+    Every step checks whether it already happened before touching anything,
+    so it's safe to run on every startup.
+    """
+    _ensure_columns('branches', [
+        ('slug',       'TEXT'),
+        ('logo_url',   'TEXT'),
+        ('theme_json', 'TEXT'),
+    ])
+    run("UPDATE branches SET slug='myspa' WHERE id=1 AND slug IS NULL")
+
+    # leave_types.name and blocked_sites.domain were globally UNIQUE — rebuild
+    # both so uniqueness is scoped per branch instead (two branches can each
+    # have an "Annual Leave" type, or both block "tiktok.com"). Existing rows
+    # are preserved and backfilled to branch_id=1.
+    with get_db() as c:
+        c.execute('PRAGMA foreign_keys = OFF')
+        if 'branch_id' not in _table_columns('leave_types'):
+            c.executescript('''
+                ALTER TABLE leave_types RENAME TO leave_types_old;
+                CREATE TABLE leave_types (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id  INTEGER DEFAULT 1,
+                    name       TEXT NOT NULL,
+                    is_paid    INTEGER DEFAULT 1,
+                    color      TEXT DEFAULT '00A8A8',
+                    is_active  INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(branch_id, name)
+                );
+                INSERT INTO leave_types (id,branch_id,name,is_paid,color,is_active,created_at)
+                    SELECT id,1,name,is_paid,color,is_active,created_at FROM leave_types_old;
+                DROP TABLE leave_types_old;
+            ''')
+            c.commit()
+        if 'branch_id' not in _table_columns('blocked_sites'):
+            c.executescript('''
+                ALTER TABLE blocked_sites RENAME TO blocked_sites_old;
+                CREATE TABLE blocked_sites (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    branch_id  INTEGER DEFAULT 1,
+                    domain     TEXT NOT NULL,
+                    category   TEXT DEFAULT "restricted",
+                    is_active  INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(branch_id, domain)
+                );
+                INSERT INTO blocked_sites (id,branch_id,domain,category,is_active,created_at)
+                    SELECT id,1,domain,category,is_active,created_at FROM blocked_sites_old;
+                DROP TABLE blocked_sites_old;
+            ''')
+            c.commit()
+
+    _ensure_columns('wifi_networks', [('branch_id', 'INTEGER')])
+    _ensure_columns('access_logs',   [('branch_id', 'INTEGER')])
+    run('UPDATE wifi_networks SET branch_id=1 WHERE branch_id IS NULL')
+    run('UPDATE access_logs   SET branch_id=1 WHERE branch_id IS NULL')
+
+    # Carry MYSPA's existing global theme (stored in `settings`) into branch
+    # 1's theme_json exactly once, so its look doesn't reset on first deploy.
+    row = q('SELECT theme_json FROM branches WHERE id=1')
+    if row and not row[0]['theme_json']:
+        legacy = {k: get_setting(f'theme_{k}', config.DEFAULT_THEME.get(k, ''))
+                  for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']}
+        run('UPDATE branches SET theme_json=? WHERE id=1', (json.dumps(legacy),))
+
+    # A non-superadmin admin with no branch would otherwise fall through to
+    # "all branches" under the new enforcement — a privilege escalation vs.
+    # today's loose semantics, not a fix. Pin any such accounts to branch 1.
+    orphans = q("SELECT username FROM admin_users WHERE role!='superadmin' AND branch_id IS NULL")
+    if orphans:
+        logger.warning("Assigning %d admin(s) with no branch to branch 1 (Main Branch/MYSPA): %s",
+                        len(orphans), ', '.join(o['username'] for o in orphans))
+        run("UPDATE admin_users SET branch_id=1 WHERE role!='superadmin' AND branch_id IS NULL")
+
+    _ensure_columns('employees', [('username', 'TEXT')])
+    _backfill_employee_usernames()
+
+def _backfill_employee_usernames():
+    """Every employee needs a username for kiosk sign-in. Employees created
+    before this feature existed get one generated from their name (slugified,
+    with a numeric suffix on collision) — a one-time, idempotent backfill."""
+    taken = {r['username'] for r in q('SELECT username FROM employees WHERE username IS NOT NULL')}
+    for emp in q('SELECT id, name FROM employees WHERE username IS NULL'):
+        base = _slugify(emp['name'])
+        candidate, n = base, 1
+        while candidate in taken:
+            n += 1
+            candidate = f'{base}{n}'
+        taken.add(candidate)
+        run('UPDATE employees SET username=? WHERE id=?', (candidate, emp['id']))
+
+def _unique_employee_username(desired, exclude_id=None):
+    base = _slugify(desired)
+    candidate, n = base, 1
+    while True:
+        row = q('SELECT id FROM employees WHERE username=?', (candidate,))
+        if not row or (exclude_id and row[0]['id'] == exclude_id):
+            return candidate
+        n += 1
+        candidate = f'{base}{n}'
+
+def _slugify(s):
+    s = re.sub(r'[^a-z0-9]+', '-', (s or '').lower()).strip('-')
+    return s or 'branch'
 
 def _table_columns(table):
     return {r['name'] for r in q(f'PRAGMA table_info({table})')}
@@ -244,20 +355,75 @@ def set_setting(key, value):
     else:
         run('INSERT INTO settings (key,value) VALUES (?,?)', (key, value))
 
-def get_theme():
-    return {k: get_setting(f'theme_{k}', config.DEFAULT_THEME.get(k,''))
-            for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']}
+def get_theme(branch_id=None):
+    """Full theme dict, always with every key present. `branch_id=None`
+    returns the pure global default (used on pre-login/shared surfaces where
+    no account is known yet); otherwise overlays that branch's own
+    `theme_json` on top of the defaults."""
+    theme = dict(config.DEFAULT_THEME)
+    theme.setdefault('logo_url', '')
+    if branch_id:
+        r = q('SELECT theme_json FROM branches WHERE id=?', (branch_id,))
+        if r and r[0]['theme_json']:
+            try:
+                theme.update(json.loads(r[0]['theme_json']))
+            except (ValueError, TypeError):
+                pass
+    return theme
+
+def save_theme(branch_id, updates):
+    """Merge `updates` onto that branch's current theme and persist the
+    full result — a partial save (e.g. one color changed) never wipes the
+    other keys."""
+    if not get_branch(branch_id):
+        raise ValueError('Unknown branch')
+    current = get_theme(branch_id)
+    current.update({k: str(v) for k, v in updates.items()})
+    run('UPDATE branches SET theme_json=? WHERE id=?', (json.dumps(current), branch_id))
 
 # ── BRANCHES ──────────────────────────────────────────────────────────────────
 def get_branches(active_only=True):
     return q('SELECT * FROM branches WHERE is_active=1 ORDER BY name' if active_only
              else 'SELECT * FROM branches ORDER BY name')
 
-def add_branch(name, address=None, phone=None):
-    return run('INSERT INTO branches (name,address,phone) VALUES (?,?,?)', (name, address, phone))
+def get_branch(bid):
+    r = q('SELECT * FROM branches WHERE id=?', (bid,))
+    return r[0] if r else None
 
-def update_branch(bid, name, address=None, phone=None):
-    run('UPDATE branches SET name=?,address=?,phone=? WHERE id=?', (name, address, phone, bid))
+def get_branch_by_slug(slug):
+    """Looks up a branch by its kiosk-URL slug. Deliberately does NOT filter
+    on is_active, so a caller can distinguish "no such branch" (404) from
+    "this branch was deactivated" (friendly message) for itself."""
+    r = q('SELECT * FROM branches WHERE slug=?', (slug,))
+    return r[0] if r else None
+
+def add_branch(name, address=None, phone=None, slug=None, logo_url=None):
+    slug = _slugify(slug or name)
+    if get_branch_by_slug(slug):
+        raise ValueError(f"Slug '{slug}' is already in use")
+    bid = run('INSERT INTO branches (name,address,phone,slug,logo_url) VALUES (?,?,?,?,?)',
+              (name, address, phone, slug, logo_url))
+    # Seed this new account with its own copies of the default leave types
+    # and blocked sites, mirroring what init_db() does for branch 1 — a
+    # freshly created branch shouldn't start out completely empty.
+    for leave_name, is_paid in config.DEFAULT_LEAVE_TYPES:
+        add_leave_type(leave_name, is_paid, branch_id=bid)
+    for domain, cat in config.DEFAULT_BLOCKED_SITES:
+        add_blocked_site(domain, cat, branch_id=bid)
+    return bid
+
+def update_branch(bid, name, address=None, phone=None, slug=None, logo_url=None):
+    sets, vals = ['name=?', 'address=?', 'phone=?'], [name, address, phone]
+    if slug is not None:
+        slug = _slugify(slug)
+        existing = get_branch_by_slug(slug)
+        if existing and existing['id'] != bid:
+            raise ValueError(f"Slug '{slug}' is already in use")
+        sets.append('slug=?'); vals.append(slug)
+    if logo_url is not None:
+        sets.append('logo_url=?'); vals.append(logo_url)
+    vals.append(bid)
+    run(f"UPDATE branches SET {','.join(sets)} WHERE id=?", vals)
 
 def delete_branch(bid):
     run('UPDATE branches SET is_active=0 WHERE id=?', (bid,))
@@ -278,6 +444,12 @@ def get_employee(eid):
              WHERE e.id=?''', (eid,))
     return r[0] if r else None
 
+def get_employee_by_username(username):
+    r = q('''SELECT e.*,b.name as branch_name
+             FROM employees e LEFT JOIN branches b ON e.branch_id=b.id
+             WHERE e.username=? AND e.is_active=1''', (username,))
+    return r[0] if r else None
+
 def search_employees(fragment, branch_id=None):
     if branch_id:
         return q('SELECT * FROM employees WHERE name LIKE ? AND is_active=1 AND branch_id=? ORDER BY name LIMIT 10',
@@ -288,13 +460,15 @@ def search_employees(fragment, branch_id=None):
 def add_employee(name, pin, position=None, phone=None, branch_id=1,
                  shift_start='09:30', shift_end='18:30',
                  working_days='Mon,Tue,Wed,Thu,Fri,Sat',
-                 salary_type='monthly', salary_amount=0, hire_date=None):
+                 salary_type='monthly', salary_amount=0, hire_date=None,
+                 username=None):
+    username = _unique_employee_username(username or name)
     return run('''INSERT INTO employees
         (name,pin_hash,position,phone,branch_id,shift_start,shift_end,
-         working_days,salary_type,salary_amount,hire_date)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+         working_days,salary_type,salary_amount,hire_date,username)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
         (name, hash_pin(pin), position, phone, branch_id,
-         shift_start, shift_end, working_days, salary_type, salary_amount, hire_date))
+         shift_start, shift_end, working_days, salary_type, salary_amount, hire_date, username))
 
 def update_employee(eid, **kw):
     allowed = ['name','position','phone','branch_id','shift_start','shift_end',
@@ -302,6 +476,7 @@ def update_employee(eid, **kw):
     sets, vals = [], []
     for k, v in kw.items():
         if k == 'pin': sets.append('pin_hash=?'); vals.append(hash_pin(v))
+        elif k == 'username': sets.append('username=?'); vals.append(_unique_employee_username(v, exclude_id=eid))
         elif k in allowed: sets.append(f'{k}=?'); vals.append(v)
     if not sets: return
     vals.append(eid)
@@ -363,7 +538,7 @@ def record_check_in(eid, photo_path=None, photo_status='ok', ip=None):
            (employee_id,branch_id,date,check_in,check_in_photo,check_in_status,check_in_ip,status,minutes_late)
            VALUES (?,?,?,?,?,?,?,?,?)''',
         (eid, emp['branch_id'], today, now, photo_path, photo_status, ip, status, mins_late))
-    log_event('check_in', emp['name'], ip or '', f"Status:{status} Late:{mins_late}min")
+    log_event('check_in', emp['name'], ip or '', f"Status:{status} Late:{mins_late}min", branch_id=emp['branch_id'])
     return True, f"Welcome, {emp['name']}! Checked in at {now.strftime('%H:%M')}"
 
 def record_check_out(eid, photo_path=None, photo_status='ok', ip=None):
@@ -386,7 +561,7 @@ def record_check_out(eid, photo_path=None, photo_status='ok', ip=None):
     run('''UPDATE attendance SET check_out=?,check_out_photo=?,check_out_status=?,check_out_ip=?,
            hours_worked=?,overtime_hours=?,status=? WHERE id=?''',
         (now, photo_path, photo_status, ip, round(hrs,2), round(ot,2), status, rec['id']))
-    log_event('check_out', emp['name'], ip or '', f"Hours:{hrs:.2f} OT:{ot:.2f}")
+    log_event('check_out', emp['name'], ip or '', f"Hours:{hrs:.2f} OT:{ot:.2f}", branch_id=emp['branch_id'])
     return True, f"Goodbye, {emp['name']}! Checked out at {now.strftime('%H:%M')}"
 
 def admin_edit_attendance(rid, check_in=None, check_out=None, notes=None, admin='admin'):
@@ -594,13 +769,17 @@ def mark_paid(eid, year, month):
         (date.today().isoformat(), eid, year, month))
 
 # ── LEAVE TYPES ──────────────────────────────────────────────────────────────
-def get_leave_types(active_only=True):
-    return q('SELECT * FROM leave_types WHERE is_active=1 ORDER BY name' if active_only
-             else 'SELECT * FROM leave_types ORDER BY name')
+def get_leave_types(active_only=True, branch_id=None):
+    conds  = ['is_active=1'] if active_only else []
+    params = []
+    if branch_id:
+        conds.append('branch_id=?'); params.append(branch_id)
+    where = ('WHERE ' + ' AND '.join(conds)) if conds else ''
+    return q(f'SELECT * FROM leave_types {where} ORDER BY name', params)
 
-def add_leave_type(name, is_paid=1, color=None):
-    return run('INSERT INTO leave_types (name,is_paid,color) VALUES (?,?,?)',
-              (name.strip(), 1 if is_paid else 0, color or '00A8A8'))
+def add_leave_type(name, is_paid=1, color=None, branch_id=1):
+    return run('INSERT INTO leave_types (name,is_paid,color,branch_id) VALUES (?,?,?,?)',
+              (name.strip(), 1 if is_paid else 0, color or '00A8A8', branch_id))
 
 def update_leave_type(lid, name=None, is_paid=None, color=None, is_active=None):
     sets, vals = [], []
@@ -700,33 +879,43 @@ def get_employees_with_notes(year, month, branch_id=None):
     return emps
 
 # ── BLOCKED SITES ──────────────────────────────────────────────────────────────
-def get_blocked_sites():
+def get_blocked_sites(branch_id=None):
+    if branch_id:
+        return q('SELECT * FROM blocked_sites WHERE branch_id=? ORDER BY domain', (branch_id,))
     return q('SELECT * FROM blocked_sites ORDER BY domain')
 
-def add_blocked_site(domain, category='restricted'):
-    try: run('INSERT INTO blocked_sites (domain,category) VALUES (?,?)', (domain.lower().strip(), category)); return True
-    except: return False
+def add_blocked_site(domain, category='restricted', branch_id=1):
+    try:
+        run('INSERT INTO blocked_sites (domain,category,branch_id) VALUES (?,?,?)',
+            (domain.lower().strip(), category, branch_id))
+        return True
+    except Exception:
+        return False
 
 def remove_blocked_site(sid):
     run('DELETE FROM blocked_sites WHERE id=?', (sid,))
 
 # ── WIFI NETWORKS ────────────────────────────────────────────────────────────
-def get_wifi_networks():
+def get_wifi_networks(branch_id=None):
+    if branch_id:
+        return q('SELECT * FROM wifi_networks WHERE branch_id=? ORDER BY created_at', (branch_id,))
     return q('SELECT * FROM wifi_networks ORDER BY created_at')
 
-def add_wifi_network(ssid, password='', label=''):
-    return run('INSERT INTO wifi_networks (ssid,password,label) VALUES (?,?,?)',
-               (ssid.strip(), password, label.strip()))
+def add_wifi_network(ssid, password='', label='', branch_id=1):
+    return run('INSERT INTO wifi_networks (ssid,password,label,branch_id) VALUES (?,?,?,?)',
+               (ssid.strip(), password, label.strip(), branch_id))
 
 def remove_wifi_network(wid):
     run('DELETE FROM wifi_networks WHERE id=?', (wid,))
 
 # ── ACCESS LOGS ────────────────────────────────────────────────────────────────
-def log_event(event_type, user='', ip='', details=''):
-    run('INSERT INTO access_logs (event_type,user,ip,details) VALUES (?,?,?,?)',
-        (event_type, user, ip, details))
+def log_event(event_type, user='', ip='', details='', branch_id=None):
+    run('INSERT INTO access_logs (event_type,user,ip,details,branch_id) VALUES (?,?,?,?,?)',
+        (event_type, user, ip, details, branch_id))
 
-def get_logs(limit=200):
+def get_logs(limit=200, branch_id=None):
+    if branch_id:
+        return q('SELECT * FROM access_logs WHERE branch_id=? ORDER BY created_at DESC LIMIT ?', (branch_id, limit))
     return q('SELECT * FROM access_logs ORDER BY created_at DESC LIMIT ?', (limit,))
 
 # ── ADMIN USERS ────────────────────────────────────────────────────────────────
@@ -735,6 +924,8 @@ def get_admin(username):
     return r[0] if r else None
 
 def create_admin(username, password, role='admin', branch_id=None):
+    if role != 'superadmin' and not branch_id:
+        raise ValueError('branch_id is required for non-superadmin roles')
     run('INSERT INTO admin_users (username,password_hash,role,branch_id) VALUES (?,?,?,?)',
         (username, hash_pw(password), role, branch_id))
 

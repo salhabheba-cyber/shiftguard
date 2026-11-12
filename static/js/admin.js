@@ -132,7 +132,7 @@ async function loadEmployees(){
 function openAddEmp(){
   document.getElementById('emp-modal-title').textContent='➕ Add Employee';
   document.getElementById('emp-id').value='';
-  ['e-name','e-pin','e-pos','e-phone','e-sal','e-hire'].forEach(function(id){sv(id,'');});
+  ['e-name','e-pin','e-username','e-pos','e-phone','e-sal','e-hire'].forEach(function(id){sv(id,'');});
   sv('e-ss','09:30');sv('e-se','18:30');sv('e-saltype','monthly');
   document.querySelectorAll('#wd-grid input').forEach(function(c){c.checked=c.value!=='Sun';});
   populateBranchSel('e-branch');openM('emp-modal');
@@ -140,7 +140,7 @@ function openAddEmp(){
 function editEmp(id){
   var e=allEmployees.find(function(x){return x.id===id;});if(!e)return;
   document.getElementById('emp-modal-title').textContent='✏️ Edit Employee';
-  sv('emp-id',e.id);sv('e-name',e.name);sv('e-pin','');sv('e-pos',e.position||'');sv('e-phone',e.phone||'');
+  sv('emp-id',e.id);sv('e-name',e.name);sv('e-pin','');sv('e-username',e.username||'');sv('e-pos',e.position||'');sv('e-phone',e.phone||'');
   sv('e-ss',e.shift_start);sv('e-se',e.shift_end);sv('e-saltype',e.salary_type||'monthly');sv('e-sal',e.salary_amount||'');sv('e-hire',e.hire_date||'');
   var wd=(e.working_days||'Mon,Tue,Wed,Thu,Fri,Sat').split(',');
   document.querySelectorAll('#wd-grid input').forEach(function(c){c.checked=wd.includes(c.value);});
@@ -152,7 +152,8 @@ async function saveEmp(){
   if(!id&&!pin)return msg('err','PIN required for new employees');
   if(pin&&(pin.length!==4||!/^\d+$/.test(pin)))return msg('err','PIN must be 4 digits');
   var wd=Array.from(document.querySelectorAll('#wd-grid input:checked')).map(function(c){return c.value;}).join(',');
-  var payload={name:name,position:gv('e-pos'),phone:gv('e-phone'),branch_id:parseInt(gv('e-branch'))||1,shift_start:gv('e-ss'),shift_end:gv('e-se'),working_days:wd,salary_type:gv('e-saltype'),salary_amount:parseFloat(gv('e-sal'))||0,hire_date:gv('e-hire')||null};
+  var payload={name:name,username:gv('e-username').trim()||null,position:gv('e-pos'),phone:gv('e-phone'),branch_id:parseInt(gv('e-branch'))||1,shift_start:gv('e-ss'),shift_end:gv('e-se'),working_days:wd,salary_type:gv('e-saltype'),salary_amount:parseFloat(gv('e-sal'))||0,hire_date:gv('e-hire')||null};
+  if(!payload.username)delete payload.username;
   if(pin)payload.pin=pin;
   var d=await api(id?'/api/admin/employees/'+id:'/api/admin/employees',id?'PUT':'POST',payload);
   if(d.success){msg('ok',d.message);closeM('emp-modal');loadEmployees();}else msg('err',d.message);
@@ -186,11 +187,11 @@ function populateEmpSel(selId){
   var s=document.getElementById(selId);if(!s)return;
   s.innerHTML=allEmployees.map(function(e){return'<option value="'+e.id+'">'+e.name+' ('+(e.branch_name||'?')+')</option>';}).join('');
 }
-function openAddBranch(){document.getElementById('branch-modal-title').textContent='🏢 Add Branch';sv('br-id','');['br-name','br-addr','br-phone'].forEach(function(id){sv(id,'');});openM('branch-modal');}
-function editBranch(id){var b=allBranches.find(function(x){return x.id===id;});if(!b)return;document.getElementById('branch-modal-title').textContent='✏️ Edit Branch';sv('br-id',b.id);sv('br-name',b.name);sv('br-addr',b.address||'');sv('br-phone',b.phone||'');openM('branch-modal');}
+function openAddBranch(){document.getElementById('branch-modal-title').textContent='🏢 Add Branch';sv('br-id','');['br-name','br-addr','br-phone','br-slug','br-logo'].forEach(function(id){sv(id,'');});openM('branch-modal');}
+function editBranch(id){var b=allBranches.find(function(x){return x.id===id;});if(!b)return;document.getElementById('branch-modal-title').textContent='✏️ Edit Branch';sv('br-id',b.id);sv('br-name',b.name);sv('br-addr',b.address||'');sv('br-phone',b.phone||'');sv('br-slug',b.slug||'');sv('br-logo',b.logo_url||'');openM('branch-modal');}
 async function saveBranch(){
   var id=gv('br-id');var name=gv('br-name').trim();if(!name)return msg('err','Branch name required');
-  var d=await api(id?'/api/admin/branches/'+id:'/api/admin/branches',id?'PUT':'POST',{name:name,address:gv('br-addr'),phone:gv('br-phone')});
+  var d=await api(id?'/api/admin/branches/'+id:'/api/admin/branches',id?'PUT':'POST',{name:name,address:gv('br-addr'),phone:gv('br-phone'),slug:gv('br-slug').trim()||null,logo_url:gv('br-logo').trim()||null});
   if(d.success){msg('ok',d.message||'Saved');closeM('branch-modal');await loadBranches();}else msg('err',d.message);
 }
 async function delBranch(id,name){if(!confirm('Delete branch "'+name+'"?'))return;await api('/api/admin/branches/'+id,'DELETE');msg('ok','Removed');loadBranches();}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="FaceFit Studio">
+  <rect width="200" height="200" rx="26" fill="#FA4B13"/>
+  <rect x="52" y="62" width="13" height="76" fill="#FFFFFF"/>
+  <text x="76" y="94" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="36" fill="#FFFFFF" letter-spacing="0.5">FACE</text>
+  <text x="76" y="130" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="36" fill="#FFFFFF" letter-spacing="0.5">FIT</text>
+  <text x="76" y="148" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="13" fill="#FFFFFF" letter-spacing="2.5">STUDIO</text>
+</svg>
