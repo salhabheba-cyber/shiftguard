@@ -230,6 +230,31 @@ def _maybe_auto_purge_photos():
     except Exception as e:
         logger.error(f"Auto photo purge error: {e}")
 
+def _maybe_auto_backup():
+    """Runs at most once a day per account: copies that account's database
+    into its own backup folder and keeps only the most recent N copies.
+    Protects against accidental data loss/corruption within the app; it's
+    not off-site (same volume as the live data), so Settings also offers an
+    on-demand download for the user's own external copy."""
+    try:
+        bs = database.get_backup_settings()
+        if bs['last_backup'] == date.today().isoformat(): return
+        slug   = g.account['slug']
+        folder = os.path.join(config.BACKUP_DIR, slug)
+        os.makedirs(folder, exist_ok=True)
+        ts   = datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest = os.path.join(folder, f'{slug}_{ts}.db')
+        shutil.copy2(database.current_db_path(), dest)
+        database.mark_backup_ran()
+        files = sorted((f for f in os.listdir(folder) if f.endswith('.db')),
+                       key=lambda f: os.path.getmtime(os.path.join(folder, f)))
+        for old in files[:-bs['keep']] if len(files) > bs['keep'] else []:
+            try: os.remove(os.path.join(folder, old))
+            except OSError: pass
+        logger.info(f"Auto-backed up account '{slug}' -> {dest}")
+    except Exception as e:
+        logger.error(f"Auto-backup error: {e}")
+
 def _client_ip():
     """Real client IP. Railway (and most hosts) sit behind a reverse proxy,
     so request.remote_addr alone would just be the proxy's internal IP.
@@ -415,6 +440,7 @@ def admin():
 @api_login_required
 def api_dashboard():
     _maybe_auto_purge_photos()
+    _maybe_auto_backup()
     bid  = request.args.get('branch_id', type=int)
     logs = database.get_today_attendance(bid)
     emps = database.get_employees(active_only=True, branch_id=bid)
@@ -1007,6 +1033,31 @@ def api_backup():
     dest = os.path.join(config.BACKUP_DIR, f'{slug}_backup_{ts}.db')
     shutil.copy2(database.current_db_path(), dest)
     return send_file(dest, as_attachment=True, download_name=f'{slug}_backup_{ts}.db')
+
+@app.route('/api/admin/backups')
+@api_login_required
+def api_list_backups():
+    """The automatic nightly backups kept for this account (see _maybe_auto_backup)."""
+    folder = os.path.join(config.BACKUP_DIR, g.account['slug'])
+    out = []
+    if os.path.isdir(folder):
+        for f in os.listdir(folder):
+            if not f.endswith('.db'): continue
+            p = os.path.join(folder, f)
+            out.append({'name': f, 'size_kb': round(os.path.getsize(p) / 1024),
+                       'created': datetime.fromtimestamp(os.path.getmtime(p)).strftime('%Y-%m-%d %H:%M')})
+    out.sort(key=lambda x: x['created'], reverse=True)
+    return jsonify({'backups': out})
+
+@app.route('/api/admin/backups/<fname>')
+@api_login_required
+def api_download_backup(fname):
+    if not re.fullmatch(r'[\w.-]+\.db', fname):
+        return ('Not found', 404)
+    path = os.path.join(config.BACKUP_DIR, g.account['slug'], fname)
+    if not os.path.isfile(path):
+        return ('Not found', 404)
+    return send_file(path, as_attachment=True, download_name=fname)
 
 # ── REPORTS (daily / monthly, each exportable as Excel, Word or PDF) ───────────
 EXPORT_MIME = {

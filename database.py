@@ -545,6 +545,15 @@ def purge_photo_refs(pairs):
 def mark_photo_purge_ran():
     set_setting('photo_last_purge', date.today().isoformat())
 
+def get_backup_settings():
+    return {
+        'last_backup': get_setting('backup_last_run', '') or None,
+        'keep':        int(get_setting('backup_keep', '14')),
+    }
+
+def mark_backup_ran():
+    set_setting('backup_last_run', date.today().isoformat())
+
 # ── SALARY ─────────────────────────────────────────────────────────────────────
 def calculate_salary(eid, year, month):
     """Accurate monthly salary calculation.

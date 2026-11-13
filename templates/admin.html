@@ -279,8 +279,13 @@ body{font-family:var(--font)}
       </div>
       <div class="card">
         <h3 class="card-title">💾 Database Backup</h3>
-        <p style="color:#64748B;margin-bottom:1rem;font-size:.9rem">Download a complete backup of all data.</p>
-        <button class="btn btn-success" onclick="window.open('/api/admin/backup','_blank')">📥 Download Backup</button>
+        <p style="color:#64748B;margin-bottom:1rem;font-size:.9rem">Download a fresh backup of all data right now, or grab one of the automatic nightly backups kept below.</p>
+        <button class="btn btn-success" onclick="window.open('/api/admin/backup','_blank')">📥 Download Backup Now</button>
+        <p style="color:#64748B;font-size:.82rem;margin:1rem 0 .5rem">Automatic nightly backups (kept on our servers, most recent {{ "14" }} days):</p>
+        <div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Created</th><th>Size</th><th></th></tr></thead>
+          <tbody id="backups-tbody"><tr><td colspan="3" style="text-align:center;color:#64748B;padding:1rem">Loading...</td></tr></tbody>
+        </table></div>
       </div>
     </div>
 

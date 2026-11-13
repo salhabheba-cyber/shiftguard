@@ -62,7 +62,7 @@ function switchTab(name){
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
-  if(name==='settings'){loadAdmins();loadPhotoSettings();}
+  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
 
@@ -409,6 +409,12 @@ async function deleteSelectedPhotos(){
 }
 
 // ── PHOTO AUTO-DELETE SETTINGS ────────────────────────────────────────────────
+async function loadBackups(){
+  var d=await api('/api/admin/backups');var tb=document.getElementById('backups-tbody');if(!tb)return;
+  var rows=d.backups||[];
+  tb.innerHTML=rows.length?rows.map(function(b){return'<tr><td>'+b.created+'</td><td>'+b.size_kb+' KB</td><td><a class="btn btn-outline btn-xs" href="/api/admin/backups/'+encodeURIComponent(b.name)+'">📥 Download</a></td></tr>';}).join('')
+    :'<tr><td colspan="3" style="text-align:center;color:#64748B;padding:1rem">No automatic backups yet — one is made the first time you open the dashboard each day</td></tr>';
+}
 async function loadPhotoSettings(){
   var d=await api('/api/admin/photo-settings');
   sv('ph-auto-enabled',d.enabled?'1':'0');
