@@ -129,7 +129,31 @@
       <span>{{ theme.logo_text }}</span>
       <span class="online-dot">● Online</span>
     </div>
+    <button class="btn-back" id="admin-gate-btn" onclick="openAdminGate()" style="margin-left:auto">⚙ Admin</button>
   </footer>
+</div>
+
+<!-- ADMIN GATE: re-enter admin credentials to leave the kiosk for the dashboard -->
+<div class="modal" id="m-admin-gate">
+  <div class="modal-box sm">
+    <div class="modal-head"><h3>⚙ Admin sign-in</h3><button class="modal-close" onclick="closeAdminGate()" aria-label="Close">&times;</button></div>
+    <div class="err" id="ag-err" role="alert" style="display:none;margin-bottom:1rem;padding:.75rem;border-radius:10px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);color:#B91C1C;font-size:.87rem"></div>
+
+    <form id="frm-admin-gate">
+      <div class="form-group"><label for="ag-email">Email or username</label>
+        <input id="ag-email" type="text" autocomplete="username" required></div>
+      <div class="form-group"><label for="ag-pw">Password</label>
+        <input id="ag-pw" type="password" autocomplete="current-password" required></div>
+      <button class="btn btn-primary" type="submit" id="ag-go" style="width:100%;justify-content:center">Sign in</button>
+    </form>
+
+    <form id="frm-admin-gate-2fa" hidden>
+      <p style="font-size:.88rem;color:var(--muted);margin-bottom:.8rem">Enter the 6-digit code from your authenticator app.</p>
+      <div class="form-group"><label for="ag-code">Code</label>
+        <input id="ag-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" required></div>
+      <button class="btn btn-primary" type="submit" id="ag-go-2fa" style="width:100%;justify-content:center">Verify</button>
+    </form>
+  </div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -336,6 +360,59 @@ function reset(){
   document.getElementById('ok-btn').classList.remove('ready');
   document.getElementById('cam-preview').style.display='block';
 }
+
+// ── ADMIN GATE ───────────────────────────────────────────────────────────────
+function openAdminGate(){
+  document.getElementById('ag-err').style.display='none';
+  document.getElementById('ag-email').value=''; document.getElementById('ag-pw').value='';
+  document.getElementById('frm-admin-gate-2fa').hidden=true;
+  document.getElementById('frm-admin-gate').hidden=false;
+  document.getElementById('m-admin-gate').classList.add('open');
+  setTimeout(()=>document.getElementById('ag-email').focus(),50);
+}
+function closeAdminGate(){ document.getElementById('m-admin-gate').classList.remove('open'); }
+document.getElementById('m-admin-gate').addEventListener('click',e=>{
+  if(e.target.id==='m-admin-gate') closeAdminGate();
+});
+function agErr(msg){ const e=document.getElementById('ag-err'); e.textContent=msg; e.style.display='block'; }
+
+document.getElementById('frm-admin-gate').addEventListener('submit', async e=>{
+  e.preventDefault();
+  document.getElementById('ag-err').style.display='none';
+  const email=document.getElementById('ag-email').value.trim(), pw=document.getElementById('ag-pw').value;
+  const go=document.getElementById('ag-go'); go.disabled=true; go.textContent='Signing in…';
+  try{
+    const r=await _fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:email,password:pw})});
+    const d=await r.json();
+    if(d.success && d.needs_2fa){
+      document.getElementById('frm-admin-gate').hidden=true;
+      document.getElementById('frm-admin-gate-2fa').hidden=false;
+      setTimeout(()=>document.getElementById('ag-code').focus(),50);
+    } else if(d.success){
+      location.href='/admin';
+      return;
+    } else {
+      agErr(d.message||'Invalid email or password');
+    }
+  }catch(_){ agErr('Could not reach the server. Try again.'); }
+  go.disabled=false; go.textContent='Sign in';
+});
+
+document.getElementById('frm-admin-gate-2fa').addEventListener('submit', async e=>{
+  e.preventDefault();
+  document.getElementById('ag-err').style.display='none';
+  const code=document.getElementById('ag-code').value.trim();
+  const go=document.getElementById('ag-go-2fa'); go.disabled=true; go.textContent='Verifying…';
+  try{
+    const r=await _fetch('/admin/login/2fa',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:code})});
+    const d=await r.json();
+    if(d.success){ location.href='/admin'; return; }
+    agErr(d.message||'Invalid code');
+  }catch(_){ agErr('Could not reach the server. Try again.'); }
+  go.disabled=false; go.textContent='Verify';
+});
 
 // Auto-reset on inactivity
 let timer;
