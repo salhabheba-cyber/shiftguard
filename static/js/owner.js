@@ -167,12 +167,13 @@ async function openAccount(id) {
 }
 
 function openCreate() {
-  ['c-business', 'c-name', 'c-phone', 'c-email', 'c-pw'].forEach(function (i) { $(i).value = ''; });
+  ['c-business', 'c-name', 'c-phone', 'c-email', 'c-pw', 'c-username'].forEach(function (i) { $(i).value = ''; });
   openM('m-create'); setTimeout(function () { $('c-business').focus(); }, 50);
 }
 async function createAccount() {
   var d = await api('/api/owner/accounts', 'POST', {
-    business: gv('c-business'), name: gv('c-name'), phone: gv('c-phone'), email: gv('c-email'), password: $('c-pw').value
+    business: gv('c-business'), name: gv('c-name'), phone: gv('c-phone'), email: gv('c-email'),
+    password: $('c-pw').value, username: gv('c-username')
   });
   if (done(d, load)) closeM('m-create');
 }

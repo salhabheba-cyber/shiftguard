@@ -1506,7 +1506,7 @@ def api_owner_create():
     d = request.get_json(silent=True) or {}
     try:
         aid, err = accounts.create_account(d.get('business',''), d.get('name',''), d.get('email',''),
-                                           d.get('phone',''), d.get('password',''))
+                                           d.get('phone',''), d.get('password',''), d.get('username'))
     except Exception as e:
         logger.error(f'Create account failed: {e}')
         return _err('Could not create the account', 500)

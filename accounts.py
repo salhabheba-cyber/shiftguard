@@ -361,7 +361,7 @@ def request_signup(name, contact_name, email, phone, password, ip=''):
     log('signup_request', email.strip().lower(), aid, ip, name.strip())
     return aid, None
 
-def _provision(aid, admin_email, password=None, password_hash=None):
+def _provision(aid, admin_email, password=None, password_hash=None, admin_username='admin'):
     """Create the database, photo folder and first admin for an account."""
     acc = get_account(aid)
     rel = os.path.join('accounts', f"{acc['slug']}.db")
@@ -373,7 +373,7 @@ def _provision(aid, admin_email, password=None, password_hash=None):
         database.init_db()
         database.set_setting('theme_logo_text', acc['name'])
         database.run("UPDATE branches SET address=? WHERE id=(SELECT MIN(id) FROM branches)", (acc['name'],))
-        database.create_admin('admin', password, role='superadmin', email=admin_email,
+        database.create_admin(admin_username or 'admin', password, role='superadmin', email=admin_email,
                               password_hash=password_hash)
     os.makedirs(os.path.join(config.BASE_DIR, 'static', photo_dir), exist_ok=True)
     trial_ends = (datetime.now() + timedelta(days=config.TRIAL_DAYS)).strftime('%Y-%m-%d %H:%M:%S') \
@@ -383,7 +383,7 @@ def _provision(aid, admin_email, password=None, password_hash=None):
          (rel, photo_dir, _now(), 'trialing' if config.BILLING_ENABLED else None, trial_ends, aid))
     reindex_account(aid)
 
-def create_account(name, contact_name, email, phone, password):
+def create_account(name, contact_name, email, phone, password, admin_username=None):
     """Owner creates an account directly; it is active straight away."""
     err = validate_new(name, email, password)
     if err: return None, err
@@ -392,7 +392,7 @@ def create_account(name, contact_name, email, phone, password):
                (name.strip(), _unique_slug(name), 'pending', '', (contact_name or '').strip(),
                 email.strip().lower(), (phone or '').strip()))
     try:
-        _provision(aid, email.strip().lower(), password=password)
+        _provision(aid, email.strip().lower(), password=password, admin_username=(admin_username or '').strip() or 'admin')
     except Exception:
         _run('DELETE FROM accounts WHERE id=?', (aid,))
         raise

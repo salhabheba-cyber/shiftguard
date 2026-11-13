@@ -203,7 +203,9 @@
     <div class="form-group"><label for="c-email">Sign-in email *</label><input id="c-email" type="email"></div>
     <div class="form-group"><label for="c-pw">Password * (min 8)</label><input id="c-pw" type="text" autocomplete="off"></div>
   </div>
-  <p style="font-size:.8rem;color:var(--muted);margin:-.2rem 0 1rem">The business signs in on the home page with this email and password. Their admin username is <strong>admin</strong>.</p>
+  <div class="form-group"><label for="c-username">Admin username (optional)</label>
+    <input id="c-username" type="text" placeholder="admin"></div>
+  <p style="font-size:.8rem;color:var(--muted);margin:-.2rem 0 1rem">The business signs in on the home page with the email and password above. It can also be a name, not just "admin" &mdash; leave blank to use <strong>admin</strong>.</p>
   <div style="display:flex;gap:.5rem;justify-content:flex-end">
     <button class="btn btn-outline" onclick="closeM('m-create')">Cancel</button>
     <button class="btn btn-primary" onclick="createAccount()">Create account</button>
