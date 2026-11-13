@@ -2,20 +2,20 @@
   <g>
   <defs>
     <linearGradient id="sgo" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FF8A1F"/><stop offset="1" stop-color="#F25A00"/>
+      <stop offset="0" stop-color="#8B7FFF"/><stop offset="1" stop-color="#2E22A8"/>
     </linearGradient>
     <linearGradient id="sgb" x1="1" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#0B2A7A"/>
+      <stop offset="0" stop-color="#3B5BFF"/><stop offset="1" stop-color="#1B2E8C"/>
     </linearGradient>
     <linearGradient id="sgm" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#F25A00"/><stop offset=".55" stop-color="#FF8A1F"/><stop offset="1" stop-color="#1D4ED8"/>
+      <stop offset="0" stop-color="#2E22A8"/><stop offset=".55" stop-color="#8B7FFF"/><stop offset="1" stop-color="#3B5BFF"/>
     </linearGradient>
   </defs>
   <!-- speed lines -->
   <g stroke-linecap="round" stroke-width="4.2">
-    <path d="M6 41h9" stroke="#1D4ED8"/>
-    <path d="M2 50h5M11 50h8" stroke="#FF7A00"/>
-    <path d="M6 59h9" stroke="#FF7A00"/>
+    <path d="M6 41h9" stroke="#3B5BFF"/>
+    <path d="M2 50h5M11 50h8" stroke="#8B7FFF"/>
+    <path d="M6 59h9" stroke="#8B7FFF"/>
   </g>
   <!-- hexagonal S -->
   <g fill="none" stroke-width="12.5" stroke-linejoin="round">
@@ -25,5 +25,5 @@
   </g>
   <path d="M36 43.2 L72 52.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".95"/>
 </g>
-  <text x="104" y="68" font-family="Poppins,Montserrat,'Segoe UI',Arial,sans-serif" font-size="50" font-weight="800" font-style="italic" letter-spacing="-1"><tspan fill="#FFFFFF">Shift</tspan><tspan fill="#FF6A00">Guard</tspan></text>
+  <text x="104" y="68" font-family="Poppins,Montserrat,'Segoe UI',Arial,sans-serif" font-size="50" font-weight="800" font-style="italic" letter-spacing="-1"><tspan fill="#FFFFFF">Shift</tspan><tspan fill="#5B4FE8">Guard</tspan></text>
 </svg>

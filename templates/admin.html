@@ -437,7 +437,7 @@ body{font-family:var(--font)}
           <div class="form-group"><label>Primary Color</label>
             <div class="color-row">
               <input type="color" id="th-p" value="#{{ theme.primary }}" oninput="document.getElementById('th-p-hex').value=this.value.replace('#','')">
-              <input type="text" id="th-p-hex" placeholder="FF6A00" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
+              <input type="text" id="th-p-hex" placeholder="5B4FE8" oninput="if(this.value.length===6)document.getElementById('th-p').value='#'+this.value">
             </div>
           </div>
           <div class="form-group"><label>Secondary / Background</label>
@@ -466,7 +466,7 @@ body{font-family:var(--font)}
         <div style="margin-bottom:1rem">
           <strong style="font-size:.88rem">Quick Color Presets:</strong>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
-            <button class="preset-btn" style="background:linear-gradient(135deg,#FFA24A,#FF6A00)" onclick="applyPreset('FF6A00','EEF3FB')">🔶 ShiftGuard Orange</button>
+            <button class="preset-btn" style="background:linear-gradient(135deg,#8B7FFF,#5B4FE8)" onclick="applyPreset('5B4FE8','EFEDFC')">🔮 ShiftGuard Violet</button>
             <button class="preset-btn" style="background:linear-gradient(135deg,#F3D3A6,#B8864E);color:#1E1915" onclick="applyPreset('B8864E','F3ECE2')">✨ Luxe Gold</button>
             <button class="preset-btn" style="background:#00A8A8" onclick="applyPreset('00A8A8','E8F8F8')">🌊 Teal</button>
             <button class="preset-btn" style="background:#8e44ad" onclick="applyPreset('8e44ad','f5eef8')">💜 Purple</button>
