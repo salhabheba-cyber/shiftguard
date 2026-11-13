@@ -407,6 +407,7 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
         <div class="fg"><label for="pw">Password</label>
           <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
         <button class="go" type="submit" id="go">Sign in</button>
+        <button class="out" type="button" id="forgot-link" style="margin-top:.6rem">Forgot password?</button>
       </form>
       </div>
       <div id="pane-up" hidden>
@@ -458,6 +459,7 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
         <div class="fg"><label for="owner-pw">Password</label>
           <input id="owner-pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
         <button class="go" type="submit" id="go-owner">Sign in as owner</button>
+        <button class="out" type="button" id="owner-forgot-link" style="margin-top:.6rem">Forgot password?</button>
       </form>
       <button class="out" type="button" id="owner-back">← Business sign in</button>
     </section>
@@ -474,6 +476,23 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
         <button class="go" type="submit" id="go-2fa">Verify</button>
       </form>
       <p class="note">Lost your authenticator? Enter one of your backup codes instead.</p>
+    </section>
+
+    <!-- Forgot password (shared by both sign-in doors) -->
+    <section id="v-forgot" hidden>
+      <img class="pmark" src="/static/images/brand/shiftguard-mark.svg" alt="">
+      <h2>Forgot password?</h2>
+      <p class="psub">Enter your sign-in email and we'll send a reset link</p>
+      <div class="err" id="err-forgot" role="alert"></div>
+      <div id="forgot-form-wrap">
+        <form id="frm-forgot" novalidate>
+          <div class="fg"><label for="forgot-email">Email</label>
+            <input id="forgot-email" type="email" autocomplete="username" placeholder="you@company.com" required></div>
+          <button class="go" type="submit" id="go-forgot">Send Reset Link</button>
+        </form>
+      </div>
+      <div class="ok-msg" id="forgot-ok" hidden></div>
+      <button class="out" type="button" id="forgot-back">← Back to sign in</button>
     </section>
   </div>
 </div>
@@ -570,11 +589,12 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   // Account panel.
   var veil = document.getElementById('veil'), btn = document.getElementById('acct-btn'), lastFocus = btn;
   var signedIn = {{ 'true' if user else 'false' }};
-  function showPane(name){ // 'signin' | 'choose' | 'owner' | 'tfa'
+  function showPane(name){ // 'signin' | 'choose' | 'owner' | 'tfa' | 'forgot'
     document.getElementById('v-signin').hidden = name !== 'signin';
     document.getElementById('v-choose').hidden = name !== 'choose';
     document.getElementById('v-owner').hidden  = name !== 'owner';
     document.getElementById('v-2fa').hidden    = name !== 'tfa';
+    document.getElementById('v-forgot').hidden = name !== 'forgot';
   }
   function open(){ lastFocus = document.activeElement || btn; veil.classList.add('open'); var f = document.querySelector('#v-signin:not([hidden]) #email, #v-owner:not([hidden]) #owner-email'); if (f) setTimeout(function(){ f.focus(); }, 150); }
   function close(){ veil.classList.remove('open'); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
@@ -702,6 +722,33 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       err2fa.textContent = (d && d.message) || 'Invalid code'; err2fa.classList.add('show');
     } catch (_) { err2fa.textContent = 'Could not reach the server. Try again.'; err2fa.classList.add('show'); }
     go2fa.disabled = false; go2fa.textContent = 'Verify';
+  });
+
+  function openForgot(prefillEmail){
+    showPane('forgot');
+    document.getElementById('frm-forgot').hidden = false;
+    document.getElementById('forgot-ok').hidden = true;
+    document.getElementById('forgot-email').value = prefillEmail || '';
+    setTimeout(function(){ document.getElementById('forgot-email').focus(); }, 150);
+  }
+  document.getElementById('forgot-link').addEventListener('click', function(){ openForgot(document.getElementById('email').value.trim()); });
+  document.getElementById('owner-forgot-link').addEventListener('click', function(){ openForgot(document.getElementById('owner-email').value.trim()); });
+  document.getElementById('forgot-back').addEventListener('click', function(){ showPane('signin'); tab(false); });
+
+  var errForgot = document.getElementById('err-forgot'), goForgot = document.getElementById('go-forgot');
+  document.getElementById('frm-forgot').addEventListener('submit', async function(e){
+    e.preventDefault(); errForgot.classList.remove('show');
+    var email = document.getElementById('forgot-email').value.trim();
+    if (!email) { errForgot.textContent = 'Enter your email'; errForgot.classList.add('show'); return; }
+    goForgot.disabled = true; goForgot.textContent = 'Sending…';
+    try {
+      var r = await fetch('/api/auth/forgot-password', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({email: email})});
+      var d = await r.json();
+      document.getElementById('frm-forgot').hidden = true;
+      var ok = document.getElementById('forgot-ok'); ok.textContent = d.message; ok.hidden = false;
+    } catch (_) { errForgot.textContent = 'Could not reach the server. Try again.'; errForgot.classList.add('show'); }
+    goForgot.disabled = false; goForgot.textContent = 'Send Reset Link';
   });
 
   document.getElementById('signout').addEventListener('click', async function(){

@@ -51,6 +51,17 @@ STRIPE_PRICE_ID        = os.getenv('STRIPE_PRICE_ID', '')
 BILLING_ENABLED        = bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
 TRIAL_DAYS             = int(os.getenv('TRIAL_DAYS', '14'))
 
+# ── EMAIL (SMTP) ───────────────────────────────────────────────────────────────
+# Blank by default: email is fully wired but inert until SMTP_USER/PASSWORD
+# are set (e.g. a Gmail address + an "app password"), so nothing crashes
+# before real credentials exist — emails are logged instead of sent.
+SMTP_HOST     = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+SMTP_PORT     = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USER     = os.getenv('SMTP_USER', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+SMTP_FROM     = os.getenv('SMTP_FROM', '') or SMTP_USER or 'no-reply@shiftguard.app'
+EMAIL_ENABLED = bool(SMTP_USER and SMTP_PASSWORD)
+
 def _secret_key():
     """SECRET_KEY from the environment, else a random key generated once and
     kept in data/. (A key written in the source code would let anyone who has

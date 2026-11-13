@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re, time
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports, accounts, assistant, twofa, billing
+import config, database, network_manager, reports, accounts, assistant, twofa, billing, mailer
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -469,6 +469,52 @@ def login_2fa():
 
     session.pop('pending_2fa', None)
     return _complete_login(pending['kind'], rec, acc, ip)
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def api_forgot_password():
+    email = (request.get_json(silent=True) or {}).get('email', '')
+    ip    = _client_ip()
+    if _too_many_failures(ip):
+        return jsonify({'success':False,'message':'Too many attempts. Please wait 15 minutes and try again.'}), 429
+    kind, token, acc = accounts.request_password_reset(email)
+    if token:
+        link = f"{request.url_root.rstrip('/')}/reset-password?token={token}"
+        mailer.send_email(email.strip(), 'Reset your ShiftGuard password',
+            f"Click the link below to set a new password. It expires in 1 hour.\n\n{link}\n\n"
+            f"If you didn't request this, you can safely ignore this email.")
+        accounts.log('password_reset_requested', email.strip().lower(), acc['id'] if acc else None, ip)
+    else:
+        _record_failure(ip)  # slows down email enumeration attempts without revealing anything
+    # Same response either way — never reveals whether the email is registered.
+    return jsonify({'success':True,'message':"If that email is registered, we've sent a reset link."})
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template('reset_password.html', theme=dict(config.DEFAULT_THEME),
+                           token=request.args.get('token',''))
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def api_reset_password():
+    d      = request.get_json(silent=True) or {}
+    token  = d.get('token', '')
+    new_pw = d.get('password', '')
+    if len(new_pw) < 8:
+        return jsonify({'success':False,'message':'Password must be at least 8 characters'}), 400
+    row = accounts.get_password_reset(token)
+    if not row:
+        return jsonify({'success':False,'message':'This reset link is invalid or has expired'}), 400
+    if row['kind'] == 'owner':
+        accounts.set_owner_password(int(row['ref']), new_pw)
+        accounts.log('password_reset_done', f"owner:{row['ref']}", None, _client_ip())
+    else:
+        acc = accounts.get_account(int(row['ref']))
+        if not acc:
+            return jsonify({'success':False,'message':'Account not found'}), 400
+        with database.using(accounts.db_path(acc)):
+            database.set_admin_password(row['username'], new_pw)
+        accounts.log('password_reset_done', row['username'], acc['id'], _client_ip())
+    accounts.consume_password_reset(token)
+    return jsonify({'success':True,'message':'Password updated. You can now sign in.'})
 
 @app.route('/admin/logout', methods=['POST'])
 @login_required
@@ -1479,13 +1525,22 @@ def api_owner_update(aid):
 @owner_required
 def api_owner_action(aid, action):
     d = request.get_json(silent=True) or {}
+    pending_acc = accounts.get_account(aid)
     if action == 'approve':
         try: err = accounts.approve(aid)
         except Exception as e:
             logger.error(f'Approve failed: {e}'); err = 'Could not create the account'
         msg = 'Account approved and ready to use'
+        if not err and pending_acc and pending_acc.get('contact_email'):
+            mailer.send_email(pending_acc['contact_email'], 'Your ShiftGuard account is ready',
+                f"Good news — your business account \"{pending_acc['name']}\" has been approved.\n\n"
+                f"Sign in at {request.url_root.rstrip('/')}/ with the email and password you used to sign up.")
     elif action == 'reject':
         err, msg = accounts.reject(aid), 'Request rejected'
+        if not err and pending_acc and pending_acc.get('contact_email'):
+            mailer.send_email(pending_acc['contact_email'], 'About your ShiftGuard sign-up',
+                f"Thanks for your interest in ShiftGuard. We weren't able to approve the sign-up request "
+                f"for \"{pending_acc['name']}\" at this time.")
     elif action in ('suspend', 'activate'):
         err = accounts.set_status(aid, 'suspended' if action == 'suspend' else 'active')
         msg = 'Account suspended' if action == 'suspend' else 'Account activated'

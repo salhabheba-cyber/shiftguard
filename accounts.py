@@ -10,7 +10,7 @@ module keeps the platform-level records in a separate file
                page can find which account a sign-in belongs to
   platform_log sign-ins and owner actions
 """
-import os, re, shutil, sqlite3, logging
+import os, re, shutil, sqlite3, logging, secrets
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 import config, database
@@ -103,6 +103,14 @@ def init_platform():
             account_id INTEGER,
             ip         TEXT,
             details    TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS password_resets (
+            token      TEXT PRIMARY KEY,
+            kind       TEXT NOT NULL,   -- 'owner' | 'account'
+            ref        TEXT NOT NULL,   -- owner id, or account id (kind='account')
+            username   TEXT,            -- admin_users.username, only for kind='account'
+            expires_at TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         ''')
@@ -486,3 +494,44 @@ def disable_owner_totp(oid):
 
 def set_owner_backup_codes(oid, backup_codes_json):
     _run('UPDATE owners SET backup_codes=? WHERE id=?', (backup_codes_json, oid))
+
+def set_owner_password(oid, new_pw):
+    _run('UPDATE owners SET password_hash=?, must_change=0 WHERE id=?', (database.hash_pw(new_pw), oid))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PASSWORD RESET (forgot password, both owner and business admin logins)
+# ══════════════════════════════════════════════════════════════════════════════
+def create_password_reset(kind, ref, username=None, ttl_minutes=60):
+    token   = secrets.token_urlsafe(32)
+    expires = (datetime.now() + timedelta(minutes=ttl_minutes)).strftime('%Y-%m-%d %H:%M:%S')
+    _run('INSERT INTO password_resets (token,kind,ref,username,expires_at) VALUES (?,?,?,?,?)',
+         (token, kind, str(ref), username, expires))
+    return token
+
+def get_password_reset(token):
+    r = _q('SELECT * FROM password_resets WHERE token=?', (token,))
+    if not r: return None
+    row = r[0]
+    if row['expires_at'] < _now():
+        _run('DELETE FROM password_resets WHERE token=?', (token,))
+        return None
+    return row
+
+def consume_password_reset(token):
+    _run('DELETE FROM password_resets WHERE token=?', (token,))
+
+def request_password_reset(email):
+    """Looks up `email` across owners and every account's admin login index.
+    Always safe to call with an unregistered email — callers should show the
+    same generic message either way, to avoid leaking which emails exist."""
+    email = (email or '').strip().lower()
+    if not email:
+        return None, None, None
+    own = get_owner_by_email(email)
+    if own:
+        return 'owner', create_password_reset('owner', own['id']), None
+    for r in _q('SELECT * FROM login_index WHERE lower(email)=lower(?)', (email,)):
+        acc = get_account(r['account_id'])
+        if acc and acc['status'] not in ('deleted', 'pending', 'rejected'):
+            return 'account', create_password_reset('account', acc['id'], r['username']), acc
+    return None, None, None
