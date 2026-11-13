@@ -933,14 +933,18 @@ def api_remove_hosts():
 @app.route('/api/admin/theme', methods=['GET'])
 @api_login_required
 def api_get_theme():
-    return jsonify({'theme':database.get_theme()})
+    return jsonify({'success':True,'theme':database.get_theme()})
 
 @app.route('/api/admin/theme', methods=['POST'])
 @api_login_required
 def api_save_theme():
     d = request.get_json(silent=True) or {}
     for k in ['primary','secondary','accent','dark','text','font','logo_text','dark_mode']:
-        if k in d: database.set_setting(f'theme_{k}', str(d[k]).replace('#',''))
+        if k not in d: continue
+        v = str(d[k]).replace('#','')
+        if k == 'font':
+            v = re.sub(r'[^A-Za-z0-9 \-]', '', v)[:40].strip() or 'Inter'
+        database.set_setting(f'theme_{k}', v)
     return jsonify({'success':True,'message':'Theme saved'})
 
 ALLOWED_LOGO_TYPES = {'image/png':'png','image/jpeg':'jpg','image/svg+xml':'svg','image/webp':'webp'}

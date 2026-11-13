@@ -166,6 +166,18 @@
 // If the sign-in expires, go back to the home page to sign in again.
 const _fetch=window.fetch.bind(window);
 window.fetch=async(...a)=>{const r=await _fetch(...a);if(r.status===401)location.href="/?signin=1";return r;};
+
+// Load this account's custom font from Google Fonts if it isn't a system font.
+(function(){
+  const name={{ theme.font|tojson }};
+  const system=['Arial','Verdana','Georgia','Segoe UI','Tahoma','Times New Roman','Courier New','Trebuchet MS'];
+  if(name && system.indexOf(name)===-1){
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='https://fonts.googleapis.com/css2?family='+encodeURIComponent(name).replace(/%20/g,'+')+':wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(link);
+  }
+})();
 // ── STATE ────────────────────────────────────────────────────────────────────
 let selId=null, selName='', action=null, pin='', branchId=0;
 let camStream=null, capturedPhoto=null;

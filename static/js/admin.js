@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   sv('lv-from',new Date(Date.now()-30*864e5).toISOString().split('T')[0]);
   sv('lv-to',new Date(Date.now()+60*864e5).toISOString().split('T')[0]);
   sv('notes-month',month);
+  if(typeof CURRENT_FONT!=='undefined')ensureFontLoaded(CURRENT_FONT);
   loadAll();
 });
 
@@ -62,7 +63,7 @@ function switchTab(name){
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
-  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();load2FAStatus();loadBillingStatus();}
+  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();load2FAStatus();loadBillingStatus();loadThemeForm();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
 
@@ -571,10 +572,65 @@ async function loadLogs(){
 }
 
 function applyPreset(p,s){document.getElementById('th-p').value='#'+p;sv('th-p-hex',p);document.getElementById('th-s').value='#'+s;sv('th-s-hex',s);}
+
+// ── Theme: color math (plain JS, no deps) ──────────────────────────────────────
+function hexToRgb(hex){
+  hex=(hex||'').replace('#','');
+  if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');
+  var n=parseInt(hex,16)||0;
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function rgbToHex(r,g,b){
+  return [r,g,b].map(function(v){v=Math.max(0,Math.min(255,Math.round(v)));var s=v.toString(16);return s.length===1?'0'+s:s;}).join('');
+}
+function shade(hex,pct){ // pct<0 darkens toward black, pct>0 lightens toward white
+  var rgb=hexToRgb(hex), t=pct<0?0:255, p=Math.abs(pct);
+  return rgbToHex(rgb[0]+(t-rgb[0])*p, rgb[1]+(t-rgb[1])*p, rgb[2]+(t-rgb[2])*p);
+}
+
+var SYSTEM_FONTS=['Arial','Verdana','Georgia','Segoe UI','Tahoma','Times New Roman','Courier New','Trebuchet MS'];
+var _fontsLoaded={};
+function ensureFontLoaded(name){
+  name=(name||'').trim();
+  if(!name||_fontsLoaded[name]||SYSTEM_FONTS.indexOf(name)!==-1)return;
+  _fontsLoaded[name]=true;
+  var link=document.createElement('link');
+  link.rel='stylesheet';
+  link.href='https://fonts.googleapis.com/css2?family='+encodeURIComponent(name).replace(/%20/g,'+')+':wght@400;500;600;700;800&display=swap';
+  document.head.appendChild(link);
+}
+
+// Apply a theme to the page right now, no reload needed.
+function applyThemeLive(t){
+  var root=document.documentElement.style;
+  root.setProperty('--primary','#'+t.primary);
+  root.setProperty('--secondary','#'+t.secondary);
+  root.setProperty('--accent','#'+t.accent);
+  root.setProperty('--dark','#'+t.dark);
+  root.setProperty('--text','#'+t.text);
+  if(t.font){ ensureFontLoaded(t.font); root.setProperty('--font',"'"+t.font+"','Segoe UI',sans-serif"); }
+}
+
+async function loadThemeForm(){
+  var d=await api('/api/admin/theme');
+  if(!d.success)return;
+  var t=d.theme;
+  document.getElementById('th-p').value='#'+t.primary; sv('th-p-hex',t.primary);
+  document.getElementById('th-s').value='#'+t.secondary; sv('th-s-hex',t.secondary);
+  sv('th-font',t.font); sv('th-name',t.logo_text); sv('th-dark',t.dark_mode);
+  ensureFontLoaded(t.font);
+}
+
 async function saveTheme(){
-  var payload={primary:gv('th-p-hex')||document.getElementById('th-p').value.replace('#',''),secondary:gv('th-s-hex')||document.getElementById('th-s').value.replace('#',''),font:gv('th-font'),logo_text:gv('th-name')||'ShiftGuard',dark_mode:gv('th-dark')};
+  var primary=gv('th-p-hex')||document.getElementById('th-p').value.replace('#','');
+  var secondary=gv('th-s-hex')||document.getElementById('th-s').value.replace('#','');
+  var payload={
+    primary:primary, secondary:secondary,
+    accent:shade(primary,0.18), dark:shade(primary,-0.55), text:shade(primary,-0.40),
+    font:gv('th-font')||'Inter', logo_text:gv('th-name')||'ShiftGuard', dark_mode:gv('th-dark')
+  };
   var d=await api('/api/admin/theme','POST',payload);
-  if(d.success){msg('ok','Theme saved! Refreshing...');setTimeout(function(){location.reload();},1200);}else msg('err',d.message);
+  if(d.success){ msg('ok','Theme saved'); applyThemeLive(payload); } else msg('err',d.message);
 }
 document.addEventListener('DOMContentLoaded',function(){
   var logoFile=document.getElementById('th-logo-file');

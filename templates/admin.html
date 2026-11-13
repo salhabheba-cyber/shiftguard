@@ -449,7 +449,12 @@ body{font-family:var(--font)}
         </div>
         <div class="form-row">
           <div class="form-group"><label>Font Family</label>
-            <select id="th-font"><option>Inter</option><option>Segoe UI</option><option>Arial</option><option>Poppins</option><option>Roboto</option><option>Verdana</option><option>Georgia</option></select>
+            <input id="th-font" type="text" list="font-suggestions" placeholder="Inter">
+            <datalist id="font-suggestions">
+              <option value="Inter"><option value="Poppins"><option value="Roboto"><option value="Montserrat">
+              <option value="Lato"><option value="Nunito"><option value="Playfair Display"><option value="Merriweather">
+              <option value="Segoe UI"><option value="Arial"><option value="Verdana"><option value="Georgia">
+            </datalist>
           </div>
           <div class="form-group"><label>App Name</label>
             <input type="text" id="th-name" placeholder="ShiftGuard">
@@ -738,7 +743,7 @@ body{font-family:var(--font)}
   <img id="lb-img" src="" alt="Photo">
 </div>
 
-<script>var CURRENT_USER={{ user.username|tojson }};</script>
+<script>var CURRENT_USER={{ user.username|tojson }};var CURRENT_FONT={{ theme.font|tojson }};</script>
 <script src="/static/js/admin.js"></script>
 {% if ai_enabled %}
 <script src="/static/js/assistant.js" data-endpoint="/api/assistant/account" data-title="ShiftGuard AI"
