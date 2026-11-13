@@ -416,7 +416,7 @@ def login_post():
     kind, rec, acc, err = accounts.authenticate(login, d.get('password',''), owner_only=bool(d.get('owner_only')))
     if not kind:
         _record_failure(ip)
-        accounts.log('login_fail', login, None, ip, err)
+        accounts.log('login_fail', login, accounts.find_account_for_login(login), ip, err)
         return jsonify({'success':False,'message':err}), 401
     if rec.get('totp_enabled'):
         session['pending_2fa'] = {
@@ -1484,9 +1484,11 @@ def api_owner_overview():
     rows, totals = [], {'accounts':0,'active':0,'suspended':0,'pending':0,'employees':0,'checked_in':0,'today':0}
     for acc in accounts.list_accounts():
         st = accounts.account_stats(acc)
-        rows.append({k: acc[k] for k in ('id','name','slug','status','contact_name','contact_email','phone',
-                                         'notes','created_at','approved_at','last_activity',
-                                         'subscription_status','trial_ends_at')} | st)
+        row = {k: acc[k] for k in ('id','name','slug','status','contact_name','contact_email','phone',
+                                   'notes','created_at','approved_at','last_activity',
+                                   'subscription_status','trial_ends_at','free_forever')} | st
+        row['risk'] = accounts.account_risk(acc, st)
+        rows.append(row)
         if acc['status'] in ('active','suspended','pending'):
             totals[acc['status']] += 1
         if acc['status'] in ('active','suspended'):
@@ -1547,6 +1549,9 @@ def api_owner_action(aid, action):
     elif action == 'reset-password':
         err = accounts.reset_admin_password(aid, d.get('username',''), d.get('password',''))
         msg = f"Password reset for {d.get('username','')}"
+    elif action in ('mark-free', 'mark-paid'):
+        accounts.set_free_forever(aid, action == 'mark-free')
+        err, msg = None, ('Marked as always free' if action == 'mark-free' else 'Marked as payable')
     elif action == 'open':
         acc = accounts.get_account(aid)
         if not acc or not acc['db_file'] or acc['status'] not in ('active','suspended'):

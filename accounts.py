@@ -125,6 +125,13 @@ def init_platform():
         ('subscription_status',    'TEXT'),   # NULL | trialing | active | past_due | canceled
         ('trial_ends_at',          'TEXT'),
     ])
+    is_new_flag = 'free_forever' not in _table_columns('accounts')
+    _ensure_columns('accounts', [('free_forever', 'INTEGER DEFAULT 0')])
+    if is_new_flag:
+        # Grandfather in every account that already existed the moment this
+        # flag was introduced — new accounts created from now on default to
+        # payable (free_forever=0) unless the owner opts one in.
+        _run('UPDATE accounts SET free_forever=1')
 
     # The original database becomes account #1, left exactly where it is.
     if not _q('SELECT id FROM accounts LIMIT 1'):
@@ -290,6 +297,19 @@ def authenticate(login, password, owner_only=False):
             return 'account', adm, acc, None
     return None, None, None, 'Invalid email or password'
 
+def find_account_for_login(login):
+    """Best-effort account lookup for a login string, independent of whether
+    the password was right. Used to attribute a failed sign-in to the
+    business it targeted (for per-account risk signals) even on a wrong
+    password, without revealing anything extra to the caller."""
+    login = (login or '').strip()
+    if not login: return None
+    if '@' in login:
+        rows = _q('SELECT account_id FROM login_index WHERE lower(email)=lower(?)', (login,))
+    else:
+        rows = _q('SELECT account_id FROM login_index WHERE username=?', (login,))
+    return rows[0]['account_id'] if rows else None
+
 def touch(aid):
     _run('UPDATE accounts SET last_activity=? WHERE id=?', (_now(), aid))
 
@@ -430,17 +450,28 @@ def reset_admin_password(aid, username, new_pw):
 def account_stats(acc):
     """Headline numbers for one account, read from its own database."""
     out = {'employees': 0, 'checked_in': 0, 'today': 0, 'admins': 0, 'admin_email': None,
-           'db_kb': 0, 'last_checkin': None}
+           'db_kb': 0, 'last_checkin': None, 'failed_logins_24h': 0, 'off_hours_checkins': 0}
     if not acc['db_file']: return out
     path = db_path(acc)
     if not os.path.exists(path): return out
     out['db_kb'] = round(os.path.getsize(path) / 1024)
+    r = _q("SELECT COUNT(*) c FROM platform_log WHERE account_id=? AND event IN ('login_fail','login_2fa_fail') "
+           "AND created_at >= datetime('now','-1 day')", (acc['id'],))
+    out['failed_logins_24h'] = r[0]['c'] if r else 0
     try:
         with database.using(path):
             out['employees'] = len(database.get_employees(active_only=True))
             today = database.get_today_attendance()
             out['today'] = len([l for l in today if l.get('check_in')])
             out['checked_in'] = len([l for l in today if l.get('check_in') and not l.get('check_out')])
+            for l in today:
+                ci = l.get('check_in')
+                if ci and len(ci) >= 13:
+                    try:
+                        h = int(ci[11:13])
+                        if h < 5 or h >= 23: out['off_hours_checkins'] += 1
+                    except ValueError:
+                        pass
             admins = database.get_all_admins()
             out['admins'] = len(admins)
             out['admin_email'] = next((a['email'] for a in admins if a.get('email')), None)
@@ -449,6 +480,25 @@ def account_stats(acc):
     except Exception as e:
         logger.error(f"Stats failed for account {acc['id']}: {e}")
     return out
+
+def account_risk(acc, stats):
+    """Combines the available risk signals for one account into a single
+    indicator for the owner dashboard: repeated failed sign-ins, off-hours
+    check-ins, and an active account that has gone quiet."""
+    reasons = []
+    if stats.get('failed_logins_24h', 0) >= 3:
+        reasons.append(f"{stats['failed_logins_24h']} failed sign-in attempts in the last 24h")
+    if stats.get('off_hours_checkins', 0) > 0:
+        n = stats['off_hours_checkins']
+        reasons.append(f"{n} check-in{'s' if n != 1 else ''} today outside normal hours (11pm–5am)")
+    if acc['status'] == 'active':
+        cutoff = (datetime.now() - timedelta(days=14)).strftime('%Y-%m-%d %H:%M:%S')
+        if not acc['last_activity'] or acc['last_activity'] < cutoff:
+            reasons.append('No sign-in activity for 14+ days')
+    if not reasons:
+        return {'level': 'ok', 'reasons': []}
+    level = 'high' if stats.get('failed_logins_24h', 0) >= 3 else 'medium'
+    return {'level': level, 'reasons': reasons}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BILLING (Stripe) ──────────────────────────────────────────────────────────────
@@ -462,6 +512,12 @@ def get_account_by_stripe_customer(customer_id):
 def set_subscription_status(aid, subscription_id, status):
     _run('UPDATE accounts SET stripe_subscription_id=?, subscription_status=? WHERE id=?',
          (subscription_id, status, aid))
+
+def set_free_forever(aid, flag):
+    """Owner-controlled override: accounts marked free_forever are never
+    expected to pay, regardless of what billing enforcement looks like
+    later. New accounts default to payable (flag=0)."""
+    _run('UPDATE accounts SET free_forever=? WHERE id=?', (1 if flag else 0, aid))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # OWNER LOGIN
