@@ -43,6 +43,7 @@ def create_checkout_session(acc, success_url, cancel_url):
             customer=customer_id,
             mode='subscription',
             line_items=[{'price': config.STRIPE_PRICE_ID, 'quantity': 1}],
+            subscription_data={'trial_period_days': config.TRIAL_DAYS},
             success_url=success_url,
             cancel_url=cancel_url,
             allow_promotion_codes=True,

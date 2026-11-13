@@ -53,7 +53,7 @@ STRIPE_WEBHOOK_SECRET  = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 # The Stripe Price ID (price_...) for the single recurring subscription plan.
 STRIPE_PRICE_ID        = os.getenv('STRIPE_PRICE_ID', '')
 BILLING_ENABLED        = bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
-TRIAL_DAYS             = int(os.getenv('TRIAL_DAYS', '14'))
+TRIAL_DAYS             = int(os.getenv('TRIAL_DAYS', '7'))
 
 # ── EMAIL (SMTP) ───────────────────────────────────────────────────────────────
 # Blank by default: email is fully wired but inert until SMTP_USER/PASSWORD
