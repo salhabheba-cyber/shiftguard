@@ -62,7 +62,7 @@ function switchTab(name){
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
-  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();}
+  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();load2FAStatus();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
 
@@ -409,6 +409,48 @@ async function deleteSelectedPhotos(){
 }
 
 // ── PHOTO AUTO-DELETE SETTINGS ────────────────────────────────────────────────
+async function load2FAStatus(){
+  var d=await api('/api/admin/2fa/status');
+  var on=!!d.enabled;
+  sv2fa('tfa-status-text', on?'Two-factor authentication is ON for your account.':'Two-factor authentication is OFF. Turn it on to require a code from your phone at sign-in.');
+  document.getElementById('tfa-off').style.display=on?'none':'';
+  document.getElementById('tfa-on').style.display=on?'':'none';
+  document.getElementById('tfa-setup').style.display='none';
+  document.getElementById('tfa-backup-codes').style.display='none';
+}
+function sv2fa(id,text){var e=document.getElementById(id);if(e)e.textContent=text;}
+async function start2FASetup(){
+  var d=await api('/api/admin/2fa/setup','POST',{});
+  if(!d.success)return msg('err',d.message||'Could not start setup');
+  document.getElementById('tfa-off').style.display='none';
+  document.getElementById('tfa-setup').style.display='';
+  document.getElementById('tfa-secret').textContent=d.secret;
+  var qr=document.getElementById('tfa-qr');qr.innerHTML='';
+  new QRCode(qr,{text:d.otpauth_url,width:180,height:180});
+  sv('tfa-code','');
+}
+function cancel2FASetup(){
+  document.getElementById('tfa-setup').style.display='none';
+  document.getElementById('tfa-off').style.display='';
+}
+async function verify2FASetup(){
+  var d=await api('/api/admin/2fa/verify','POST',{code:gv('tfa-code').trim()});
+  if(!d.success)return msg('err',d.message||'Invalid code');
+  document.getElementById('tfa-setup').style.display='none';
+  document.getElementById('tfa-backup-codes').style.display='';
+  document.getElementById('tfa-codes-list').innerHTML=(d.backup_codes||[]).map(function(c){return'<div>'+c+'</div>';}).join('');
+  msg('ok','Two-factor authentication enabled');
+}
+function closeTfaBackupCodes(){
+  document.getElementById('tfa-backup-codes').style.display='none';
+  load2FAStatus();
+}
+async function disable2FA(){
+  var pw=gv('tfa-disable-pw');
+  if(!pw)return msg('err','Enter your current password');
+  var d=await api('/api/admin/2fa/disable','POST',{password:pw});
+  if(d.success){msg('ok',d.message);sv('tfa-disable-pw','');load2FAStatus();}else msg('err',d.message);
+}
 async function loadBackups(){
   var d=await api('/api/admin/backups');var tb=document.getElementById('backups-tbody');if(!tb)return;
   var rows=d.backups||[];

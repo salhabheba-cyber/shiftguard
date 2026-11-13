@@ -241,6 +241,11 @@ def init_db():
     ])
     # Admin accounts can sign in with an email address as well as a username.
     _ensure_columns('admin_users', [('email', 'TEXT')])
+    _ensure_columns('admin_users', [
+        ('totp_secret',  'TEXT'),
+        ('totp_enabled', 'INTEGER DEFAULT 0'),
+        ('backup_codes', 'TEXT'),
+    ])
     with get_db() as c:
         c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_email ON admin_users (lower(email)) WHERE email IS NOT NULL')
         c.commit()
@@ -823,6 +828,20 @@ def set_admin_password(username, new_pw):
 
 def set_admin_email(username, email):
     run('UPDATE admin_users SET email=? WHERE username=?', (_clean_email(email), username))
+
+def set_admin_totp_pending(username, secret):
+    """Stores a freshly generated secret without enabling 2FA yet — only
+    takes effect once the user proves they scanned it via /verify."""
+    run('UPDATE admin_users SET totp_secret=?, totp_enabled=0 WHERE username=?', (secret, username))
+
+def enable_admin_totp(username, backup_codes_json):
+    run('UPDATE admin_users SET totp_enabled=1, backup_codes=? WHERE username=?', (backup_codes_json, username))
+
+def disable_admin_totp(username):
+    run('UPDATE admin_users SET totp_secret=NULL, totp_enabled=0, backup_codes=NULL WHERE username=?', (username,))
+
+def set_admin_backup_codes(username, backup_codes_json):
+    run('UPDATE admin_users SET backup_codes=? WHERE username=?', (backup_codes_json, username))
 
 def verify_admin(login, password):
     """`login` is an account email (contains '@') or a username."""

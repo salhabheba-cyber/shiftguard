@@ -19,6 +19,7 @@
 }
 body{font-family:var(--font)}
 </style>
+<script src="/static/js/qrcode.min.js"></script>
 </head>
 <body>
 <div class="admin-wrap">
@@ -486,6 +487,33 @@ body{font-family:var(--font)}
         <div class="form-group"><label>New Password (min 8 chars)</label><input type="password" id="pw-new"></div>
         <div class="form-group"><label>Confirm New Password</label><input type="password" id="pw-cfm"></div>
         <button class="btn btn-primary" onclick="changePw()">🔐 Change Password</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">🔒 Two-Factor Authentication</h3>
+        <p id="tfa-status-text" style="color:#64748B;margin-bottom:1rem;font-size:.9rem">Checking status...</p>
+        <div id="tfa-off">
+          <button class="btn btn-primary" onclick="start2FASetup()">🔐 Enable Two-Factor Authentication</button>
+        </div>
+        <div id="tfa-setup" style="display:none">
+          <p style="font-size:.88rem;color:#64748B;margin-bottom:.8rem">Scan this QR code with Google Authenticator, Authy, or any TOTP app, then enter the 6-digit code it shows.</p>
+          <div id="tfa-qr" style="margin-bottom:.8rem"></div>
+          <p style="font-size:.78rem;color:#64748B;margin-bottom:.8rem">Can't scan? Enter this code manually: <code id="tfa-secret" style="user-select:all"></code></p>
+          <div class="form-group" style="max-width:200px"><label>6-digit code</label><input type="text" id="tfa-code" maxlength="6" inputmode="numeric" placeholder="123456"></div>
+          <button class="btn btn-primary" onclick="verify2FASetup()">✅ Verify &amp; Enable</button>
+          <button class="btn btn-outline" onclick="cancel2FASetup()">Cancel</button>
+        </div>
+        <div id="tfa-backup-codes" style="display:none">
+          <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin-bottom:1rem;color:#664d03">
+            <strong>Save these backup codes somewhere safe.</strong> Each can be used once if you lose access to your authenticator app. They won't be shown again.
+            <div id="tfa-codes-list" style="font-family:monospace;margin-top:.6rem;line-height:1.8"></div>
+          </div>
+          <button class="btn btn-primary" onclick="closeTfaBackupCodes()">I've saved these codes</button>
+        </div>
+        <div id="tfa-on" style="display:none">
+          <div class="form-group" style="max-width:300px"><label>Current Password</label><input type="password" id="tfa-disable-pw"></div>
+          <button class="btn btn-danger" onclick="disable2FA()">🔓 Disable Two-Factor Authentication</button>
+        </div>
       </div>
 
       <div class="card">

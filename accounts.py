@@ -43,6 +43,18 @@ def _run(sql, p=()):
 def _now():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+def _table_columns(table):
+    return {r['name'] for r in _q(f'PRAGMA table_info({table})')}
+
+def _ensure_columns(table, coldefs):
+    """Add any missing columns to `table`. Never drops or modifies existing data."""
+    existing = _table_columns(table)
+    missing  = [(n, d) for n, d in coldefs if n not in existing]
+    if not missing: return
+    with _db() as c:
+        for name, decl in missing:
+            c.execute(f'ALTER TABLE {table} ADD COLUMN {name} {decl}')
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SETUP
 # ══════════════════════════════════════════════════════════════════════════════
@@ -94,6 +106,11 @@ def init_platform():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         ''')
+    _ensure_columns('owners', [
+        ('totp_secret',  'TEXT'),
+        ('totp_enabled', 'INTEGER DEFAULT 0'),
+        ('backup_codes', 'TEXT'),
+    ])
 
     # The original database becomes account #1, left exactly where it is.
     if not _q('SELECT id FROM accounts LIMIT 1'):
@@ -435,3 +452,15 @@ def update_owner(oid, email=None, name=None, current_pw=None, new_pw=None):
         if len(new_pw) < 8: return 'New password must be at least 8 characters'
         _run('UPDATE owners SET password_hash=?, must_change=0 WHERE id=?', (database.hash_pw(new_pw), oid))
     return None
+
+def set_owner_totp_pending(oid, secret):
+    _run('UPDATE owners SET totp_secret=?, totp_enabled=0 WHERE id=?', (secret, oid))
+
+def enable_owner_totp(oid, backup_codes_json):
+    _run('UPDATE owners SET totp_enabled=1, backup_codes=? WHERE id=?', (backup_codes_json, oid))
+
+def disable_owner_totp(oid):
+    _run('UPDATE owners SET totp_secret=NULL, totp_enabled=0, backup_codes=NULL WHERE id=?', (oid,))
+
+def set_owner_backup_codes(oid, backup_codes_json):
+    _run('UPDATE owners SET backup_codes=? WHERE id=?', (backup_codes_json, oid))

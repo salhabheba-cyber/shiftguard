@@ -461,6 +461,20 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       </form>
       <button class="out" type="button" id="owner-back">← Business sign in</button>
     </section>
+
+    <!-- Two-factor code entry (shared by both sign-in doors) -->
+    <section id="v-2fa" hidden>
+      <img class="pmark" src="/static/images/brand/shiftguard-mark.svg" alt="">
+      <h2>🔒 Verify</h2>
+      <p class="psub">Enter the 6-digit code from your authenticator app</p>
+      <div class="err" id="err-2fa" role="alert"></div>
+      <form id="frm-2fa" novalidate>
+        <div class="fg"><label for="tfa-login-code">Code</label>
+          <input id="tfa-login-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" placeholder="123456" required></div>
+        <button class="go" type="submit" id="go-2fa">Verify</button>
+      </form>
+      <p class="note">Lost your authenticator? Enter one of your backup codes instead.</p>
+    </section>
   </div>
 </div>
 
@@ -556,10 +570,11 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
   // Account panel.
   var veil = document.getElementById('veil'), btn = document.getElementById('acct-btn'), lastFocus = btn;
   var signedIn = {{ 'true' if user else 'false' }};
-  function showPane(name){ // 'signin' | 'choose' | 'owner'
+  function showPane(name){ // 'signin' | 'choose' | 'owner' | 'tfa'
     document.getElementById('v-signin').hidden = name !== 'signin';
     document.getElementById('v-choose').hidden = name !== 'choose';
     document.getElementById('v-owner').hidden  = name !== 'owner';
+    document.getElementById('v-2fa').hidden    = name !== 'tfa';
   }
   function open(){ lastFocus = document.activeElement || btn; veil.classList.add('open'); var f = document.querySelector('#v-signin:not([hidden]) #email, #v-owner:not([hidden]) #owner-email'); if (f) setTimeout(function(){ f.focus(); }, 150); }
   function close(){ veil.classList.remove('open'); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
@@ -636,6 +651,12 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       var d = await r.json();
       if (d.success) {
         document.getElementById('pw').value = '';
+        if (d.needs_2fa) {
+          showPane('tfa');
+          setTimeout(function(){ document.getElementById('tfa-login-code').focus(); }, 150);
+          go.disabled = false; go.textContent = 'Sign in';
+          return;
+        }
         // Straight to work: owners land on their dashboard, business accounts land on the kiosk.
         location.href = d.kind === 'owner' ? '/owner' : '/kiosk';
         return;
@@ -655,10 +676,32 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
       var r = await fetch('/admin/login', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({email: email, password: pw, owner_only: true})});
       var d = await r.json();
+      if (d.success && d.needs_2fa) {
+        showPane('tfa');
+        setTimeout(function(){ document.getElementById('tfa-login-code').focus(); }, 150);
+        goOwner.disabled = false; goOwner.textContent = 'Sign in as owner';
+        return;
+      }
       if (d.success && d.kind === 'owner') { document.getElementById('owner-pw').value = ''; location.href = '/owner'; return; }
       errOwner.textContent = (d && d.message) || 'Invalid email or password'; errOwner.classList.add('show');
     } catch (_) { errOwner.textContent = 'Could not reach the server. Try again.'; errOwner.classList.add('show'); }
     goOwner.disabled = false; goOwner.textContent = 'Sign in as owner';
+  });
+
+  var err2fa = document.getElementById('err-2fa'), go2fa = document.getElementById('go-2fa');
+  document.getElementById('frm-2fa').addEventListener('submit', async function(e){
+    e.preventDefault(); err2fa.classList.remove('show');
+    var code = document.getElementById('tfa-login-code').value.trim();
+    if (!code) { err2fa.textContent = 'Enter your code'; err2fa.classList.add('show'); return; }
+    go2fa.disabled = true; go2fa.textContent = 'Verifying…';
+    try {
+      var r = await fetch('/admin/login/2fa', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({code: code})});
+      var d = await r.json();
+      if (d.success) { location.href = d.kind === 'owner' ? '/owner' : '/kiosk'; return; }
+      err2fa.textContent = (d && d.message) || 'Invalid code'; err2fa.classList.add('show');
+    } catch (_) { err2fa.textContent = 'Could not reach the server. Try again.'; err2fa.classList.add('show'); }
+    go2fa.disabled = false; go2fa.textContent = 'Verify';
   });
 
   document.getElementById('signout').addEventListener('click', async function(){

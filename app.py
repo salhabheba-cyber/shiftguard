@@ -4,9 +4,9 @@ from flask_cors import CORS
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from functools import wraps
 from datetime import datetime, timedelta, date
-import logging, os, sys, shutil, io, base64, calendar, re
+import logging, os, sys, shutil, io, base64, calendar, re, time
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports, accounts, assistant
+import config, database, network_manager, reports, accounts, assistant, twofa
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -393,6 +393,19 @@ def login_page():
     # Sign-in now happens on the public landing page.
     return redirect(url_for('home', signin=1))
 
+def _complete_login(kind, rec, acc, ip):
+    session.pop('acting_account', None)
+    if kind == 'owner':
+        login_user(OwnerUser(rec), remember=True)
+        accounts.log('owner_login', rec['email'], None, ip)
+        return jsonify({'success':True,'kind':'owner','username':rec.get('name') or 'Owner',
+                        'must_change':bool(rec.get('must_change'))})
+    login_user(AdminUser(rec, acc), remember=True)
+    accounts.log('login_ok', rec['username'], acc['id'], ip)
+    with database.using(accounts.db_path(acc)):
+        database.log_event('login_ok', rec['username'], ip, '')
+    return jsonify({'success':True,'kind':'account','username':rec['username'],'account':acc['name']})
+
 @app.route('/admin/login', methods=['POST'])
 def login_post():
     d     = request.get_json(silent=True) or {}
@@ -405,17 +418,57 @@ def login_post():
         _record_failure(ip)
         accounts.log('login_fail', login, None, ip, err)
         return jsonify({'success':False,'message':err}), 401
-    session.pop('acting_account', None)
-    if kind == 'owner':
-        login_user(OwnerUser(rec), remember=True)
-        accounts.log('owner_login', rec['email'], None, ip)
-        return jsonify({'success':True,'kind':'owner','username':rec.get('name') or 'Owner',
-                        'must_change':bool(rec.get('must_change'))})
-    login_user(AdminUser(rec, acc), remember=True)
-    accounts.log('login_ok', rec['username'], acc['id'], ip)
-    with database.using(accounts.db_path(acc)):
-        database.log_event('login_ok', rec['username'], ip, '')
-    return jsonify({'success':True,'kind':'account','username':rec['username'],'account':acc['name']})
+    if rec.get('totp_enabled'):
+        session['pending_2fa'] = {
+            'kind':       kind,
+            'ref':        rec['id'] if kind == 'owner' else rec['username'],
+            'account_id': acc['id'] if acc else None,
+            'exp':        time.time() + 300,
+        }
+        return jsonify({'success':True,'needs_2fa':True})
+    return _complete_login(kind, rec, acc, ip)
+
+@app.route('/admin/login/2fa', methods=['POST'])
+def login_2fa():
+    ip      = _client_ip()
+    pending = session.get('pending_2fa')
+    if not pending or pending['exp'] < time.time():
+        session.pop('pending_2fa', None)
+        return jsonify({'success':False,'message':'Session expired, please sign in again'}), 401
+    if _too_many_failures(ip):
+        return jsonify({'success':False,'message':'Too many attempts. Please wait 15 minutes and try again.'}), 429
+    code = (request.get_json(silent=True) or {}).get('code', '')
+
+    acc = None
+    if pending['kind'] == 'owner':
+        rec = accounts.get_owner(pending['ref'])
+    else:
+        acc = accounts.get_account(pending['account_id'])
+        rec = None
+        if acc:
+            with database.using(accounts.db_path(acc)):
+                rec = database.get_admin(pending['ref'])
+    if not rec or not acc and pending['kind'] != 'owner':
+        session.pop('pending_2fa', None)
+        return jsonify({'success':False,'message':'Account not found'}), 401
+
+    ok = twofa.verify_code(rec.get('totp_secret'), code)
+    if not ok:
+        remaining = twofa.consume_backup_code(rec.get('backup_codes'), code)
+        if remaining is not None:
+            ok = True
+            if pending['kind'] == 'owner':
+                accounts.set_owner_backup_codes(rec['id'], remaining)
+            else:
+                with database.using(accounts.db_path(acc)):
+                    database.set_admin_backup_codes(rec['username'], remaining)
+    if not ok:
+        _record_failure(ip)
+        accounts.log('login_2fa_fail', str(pending['ref']), pending.get('account_id'), ip)
+        return jsonify({'success':False,'message':'Invalid code'}), 401
+
+    session.pop('pending_2fa', None)
+    return _complete_login(pending['kind'], rec, acc, ip)
 
 @app.route('/admin/logout', methods=['POST'])
 @login_required
@@ -896,6 +949,44 @@ def api_change_pw():
                                        d.get('current_password',''), d.get('new_password',''))
     if ok: logout_user()
     return jsonify({'success':ok,'message':msg})
+
+# ── TWO-FACTOR AUTH (account admins) ────────────────────────────────────────────
+@app.route('/api/admin/2fa/status')
+@api_login_required
+def api_2fa_status():
+    adm = database.get_admin(current_user.username)
+    return jsonify({'enabled': bool(adm and adm.get('totp_enabled'))})
+
+@app.route('/api/admin/2fa/setup', methods=['POST'])
+@api_login_required
+def api_2fa_setup():
+    secret = twofa.generate_secret()
+    database.set_admin_totp_pending(current_user.username, secret)
+    label = current_user.email or current_user.username
+    return jsonify({'success':True,'secret':secret,'otpauth_url':twofa.otpauth_url(secret, label)})
+
+@app.route('/api/admin/2fa/verify', methods=['POST'])
+@api_login_required
+def api_2fa_verify():
+    code = (request.get_json(silent=True) or {}).get('code','')
+    adm  = database.get_admin(current_user.username)
+    if not adm or not twofa.verify_code(adm.get('totp_secret'), code):
+        return jsonify({'success':False,'message':'Invalid code. Try again.'}), 400
+    plain_codes, codes_json = twofa.generate_backup_codes()
+    database.enable_admin_totp(current_user.username, codes_json)
+    accounts.log('2fa_enabled', current_user.username, g.account['id'], _client_ip())
+    return jsonify({'success':True,'backup_codes':plain_codes})
+
+@app.route('/api/admin/2fa/disable', methods=['POST'])
+@api_login_required
+def api_2fa_disable():
+    pw  = (request.get_json(silent=True) or {}).get('password','')
+    adm = database.get_admin(current_user.username)
+    if not adm or not database.check_pw(adm['password_hash'], pw):
+        return jsonify({'success':False,'message':'Incorrect password'}), 400
+    database.disable_admin_totp(current_user.username)
+    accounts.log('2fa_disabled', current_user.username, g.account['id'], _client_ip())
+    return jsonify({'success':True,'message':'Two-factor authentication disabled'})
 
 # ── ADMIN USERS ────────────────────────────────────────────────────────────────
 @app.route('/api/admin/users', methods=['GET'])
@@ -1415,6 +1506,43 @@ def api_owner_profile():
     if err: return _err(err)
     accounts.log('owner_profile_updated', current_user.email, None, _client_ip())
     return _ok(message='Owner details saved')
+
+# ── TWO-FACTOR AUTH (owner) ──────────────────────────────────────────────────────
+@app.route('/api/owner/2fa/status')
+@owner_required
+def api_owner_2fa_status():
+    own = accounts.get_owner(current_user.owner_id)
+    return jsonify({'enabled': bool(own and own.get('totp_enabled'))})
+
+@app.route('/api/owner/2fa/setup', methods=['POST'])
+@owner_required
+def api_owner_2fa_setup():
+    secret = twofa.generate_secret()
+    accounts.set_owner_totp_pending(current_user.owner_id, secret)
+    return jsonify({'success':True,'secret':secret,'otpauth_url':twofa.otpauth_url(secret, current_user.email)})
+
+@app.route('/api/owner/2fa/verify', methods=['POST'])
+@owner_required
+def api_owner_2fa_verify():
+    code = (request.get_json(silent=True) or {}).get('code','')
+    own  = accounts.get_owner(current_user.owner_id)
+    if not own or not twofa.verify_code(own.get('totp_secret'), code):
+        return _err('Invalid code. Try again.')
+    plain_codes, codes_json = twofa.generate_backup_codes()
+    accounts.enable_owner_totp(current_user.owner_id, codes_json)
+    accounts.log('owner_2fa_enabled', current_user.email, None, _client_ip())
+    return _ok(backup_codes=plain_codes)
+
+@app.route('/api/owner/2fa/disable', methods=['POST'])
+@owner_required
+def api_owner_2fa_disable():
+    pw  = (request.get_json(silent=True) or {}).get('password','')
+    own = accounts.get_owner(current_user.owner_id)
+    if not own or not database.check_pw(own['password_hash'], pw):
+        return _err('Incorrect password')
+    accounts.disable_owner_totp(current_user.owner_id)
+    accounts.log('owner_2fa_disabled', current_user.email, None, _client_ip())
+    return _ok(message='Two-factor authentication disabled')
 
 # ── ERRORS ─────────────────────────────────────────────────────────────────────
 @app.errorhandler(404)

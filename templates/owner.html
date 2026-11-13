@@ -36,6 +36,7 @@
 .toast.err{background:#7E2E20;border-color:#B5523F}
 @media(max-width:768px){.kv{grid-template-columns:1fr}.kv dt{margin-top:.4rem}.owner-tag{display:none}}
 </style>
+<script src="/static/js/qrcode.min.js"></script>
 </head>
 <body>
 <div class="admin-wrap">
@@ -157,6 +158,33 @@
         </div>
         <div class="form-group" style="max-width:300px"><label for="o-cur">Current password *</label><input id="o-cur" type="password" autocomplete="current-password"></div>
         <button class="btn btn-primary" onclick="saveProfile()">💾 Save</button>
+      </div>
+
+      <div class="card" style="max-width:640px">
+        <h3 class="card-title">🔒 Two-Factor Authentication</h3>
+        <p id="o-tfa-status" style="color:var(--muted);margin-bottom:1rem;font-size:.9rem">Checking status...</p>
+        <div id="o-tfa-off">
+          <button class="btn btn-primary" onclick="startOwner2FASetup()">🔐 Enable Two-Factor Authentication</button>
+        </div>
+        <div id="o-tfa-setup" style="display:none">
+          <p style="font-size:.88rem;color:var(--muted);margin-bottom:.8rem">Scan this QR code with Google Authenticator, Authy, or any TOTP app, then enter the 6-digit code it shows.</p>
+          <div id="o-tfa-qr" style="margin-bottom:.8rem"></div>
+          <p style="font-size:.78rem;color:var(--muted);margin-bottom:.8rem">Can't scan? Enter this code manually: <code id="o-tfa-secret" style="user-select:all"></code></p>
+          <div class="form-group" style="max-width:200px"><label>6-digit code</label><input type="text" id="o-tfa-code" maxlength="6" inputmode="numeric" placeholder="123456"></div>
+          <button class="btn btn-primary" onclick="verifyOwner2FASetup()">✅ Verify &amp; Enable</button>
+          <button class="btn btn-outline" onclick="cancelOwner2FASetup()">Cancel</button>
+        </div>
+        <div id="o-tfa-backup-codes" style="display:none">
+          <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:1rem;margin-bottom:1rem;color:#3a2f00">
+            <strong>Save these backup codes somewhere safe.</strong> Each can be used once if you lose access to your authenticator app. They won't be shown again.
+            <div id="o-tfa-codes-list" style="font-family:monospace;margin-top:.6rem;line-height:1.8"></div>
+          </div>
+          <button class="btn btn-primary" onclick="closeOwnerTfaBackupCodes()">I've saved these codes</button>
+        </div>
+        <div id="o-tfa-on" style="display:none">
+          <div class="form-group" style="max-width:300px"><label>Current Password</label><input type="password" id="o-tfa-disable-pw"></div>
+          <button class="btn btn-danger" onclick="disableOwner2FA()">🔓 Disable Two-Factor Authentication</button>
+        </div>
       </div>
     </div>
   </div>
