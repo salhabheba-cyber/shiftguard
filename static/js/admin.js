@@ -1,6 +1,6 @@
 // ShiftGuard — Admin Dashboard
 
-let allEmployees=[], allBranches=[], allLeaveTypes=[], allLeaveRecords=[], gBranch='', resetPinId=null;
+let allEmployees=[], allBranches=[], allLeaveTypes=[], allLeaveRecords=[], allAdmins=[], gBranch='', resetPinId=null;
 
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.nav-link').forEach(l=>
@@ -531,8 +531,19 @@ async function changePw(){
   if(d.success){msg('ok',d.message);setTimeout(function(){location.href='/?signin=1';},2000);}else msg('err',d.message);
 }
 async function loadAdmins(){
-  var d=await api('/api/admin/users');var me=(d.users||[]).find(function(u){return u.username===CURRENT_USER;});var ae=document.getElementById('acct-email');if(ae&&me&&document.activeElement!==ae)ae.value=me.email||'';var tb=document.getElementById('admin-tbody');if(!tb)return;
-  tb.innerHTML=(d.users||[]).map(function(u){return'<tr><td><strong>'+u.username+'</strong></td><td>'+(u.email||'<span style="color:#64748B">—</span>')+'</td><td>'+u.role+'</td><td>'+(u.branch_id?u.branch_id:'All')+'</td><td style="font-size:.78rem">'+(u.last_login?(u.last_login+'').substring(0,16):'Never')+'</td><td><span class="badge '+(u.is_active?'b-green':'b-red')+'">'+(u.is_active?'Active':'Inactive')+'</span></td></tr>';}).join('');
+  var d=await api('/api/admin/users');allAdmins=d.users||[];var me=allAdmins.find(function(u){return u.username===CURRENT_USER;});var ae=document.getElementById('acct-email');if(ae&&me&&document.activeElement!==ae)ae.value=me.email||'';var tb=document.getElementById('admin-tbody');if(!tb)return;
+  tb.innerHTML=allAdmins.map(function(u){return'<tr><td><strong>'+u.username+'</strong></td><td>'+(u.email||'<span style="color:#64748B">—</span>')+'</td><td>'+u.role+'</td><td>'+(u.branch_id?u.branch_id:'All')+'</td><td style="font-size:.78rem">'+(u.last_login?(u.last_login+'').substring(0,16):'Never')+'</td><td><span class="badge '+(u.is_active?'b-green':'b-red')+'">'+(u.is_active?'Active':'Inactive')+'</span></td><td><button class="btn btn-warn btn-xs" onclick="editAdminUser('+u.id+')">✏️</button></td></tr>';}).join('');
+}
+function editAdminUser(id){
+  var u=allAdmins.find(function(x){return x.id===id;});if(!u)return;
+  sv('eadm-id',u.id);sv('eadm-u',u.username);sv('eadm-email',u.email||'');sv('eadm-role',u.role);
+  document.getElementById('eadm-active').checked=!!u.is_active;
+  openM('edit-admin-modal');
+}
+async function saveAdminEdit(){
+  var id=gv('eadm-id');
+  var d=await api('/api/admin/users/'+id,'PUT',{email:gv('eadm-email').trim(),role:gv('eadm-role'),is_active:document.getElementById('eadm-active').checked});
+  if(d.success){msg('ok','Admin updated');closeM('edit-admin-modal');loadAdmins();}else msg('err',d.message);
 }
 function openAddAdmin(){
   sv('adm-u','');sv('adm-email','');sv('adm-pw','');sv('adm-role','admin');

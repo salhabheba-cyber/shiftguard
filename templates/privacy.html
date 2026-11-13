@@ -1,0 +1,45 @@
+{% extends "legal.html" %}
+{% block content %}
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: {{ updated }}</p>
+
+<div class="notice">This is a plain-language starting draft describing what ShiftGuard actually stores and why. Have a lawyer review it against the privacy law that applies to your employees (e.g. GDPR, local labor law) before relying on it commercially.</div>
+
+<h2>1. What we collect</h2>
+<ul>
+  <li><strong>Business account data:</strong> business name, contact name, email, phone, and the admin login(s) you create.</li>
+  <li><strong>Employee data you enter:</strong> name, position, phone, shift times, salary, hire/end dates, and a 4-digit PIN (stored as a one-way hash, never in plain text).</li>
+  <li><strong>Attendance data:</strong> check-in/check-out timestamps, a verification photo at each check-in/out, and the device IP address.</li>
+  <li><strong>Usage and security logs:</strong> sign-in attempts, admin actions, and (if you enable network security) which sites were blocked on your network.</li>
+</ul>
+
+<h2>2. Why we collect it</h2>
+<p>Everything above is collected to provide the service you signed up for: verifying attendance, calculating payroll, managing leave, generating reports, and keeping your workplace network secure. We don't collect anything beyond what the features you use require.</p>
+
+<h2>3. How your data is isolated</h2>
+<p>Every business Account has its own separate database. There's no shared table that mixes data across businesses — an admin at one Account has no technical path to another Account's employees, photos, or records. The platform owner can open an Account from the owner dashboard for support purposes, which is logged.</p>
+
+<h2>4. Check-in photos</h2>
+<p>Verification photos are private: they're served only to a signed-in admin of that specific Account, never as a public file. You can configure automatic deletion of photos after a retention period of your choosing in Settings, or delete them manually at any time.</p>
+
+<h2>5. The AI assistant</h2>
+<p>Where enabled, the assistant reads your Account's own data to answer your questions, through read-only tools — it cannot modify your data. Conversations aren't used to train any model.</p>
+
+<h2>6. Data retention and deletion</h2>
+<p>We keep your data for as long as your Account is active. If you close your Account, your database is archived (not immediately destroyed) for a limited period in case of accidental closure, then permanently deleted. You can request earlier deletion by contacting support.</p>
+
+<h2>7. Backups</h2>
+<p>We keep rotating backups of each Account's data to protect against accidental loss. You can also download your own backup at any time from Settings.</p>
+
+<h2>8. Third parties</h2>
+<p>We don't sell your data. Where a feature calls an external service on your behalf (for example, an AI provider powering the assistant, or a payment processor for billing), only the minimum data needed for that request is sent, and only when you've enabled that feature.</p>
+
+<h2>9. Your rights</h2>
+<p>You can access, correct, export, or request deletion of the personal data your Account holds at any time — the tools to do this (edit, export, delete) already exist in your dashboard. If you're an employee of a business using ShiftGuard and have questions about your own data, contact that business directly; they control their own Account's data.</p>
+
+<h2>10. Changes to this policy</h2>
+<p>We may update this policy from time to time. Material changes will be reflected here with an updated date.</p>
+
+<h2>11. Contact</h2>
+<p>Questions about this policy can be sent through the in-app support option available to every Account.</p>
+{% endblock %}

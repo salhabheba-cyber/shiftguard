@@ -1,0 +1,45 @@
+{% extends "legal.html" %}
+{% block content %}
+<h1>Terms of Service</h1>
+<p class="updated">Last updated: {{ updated }}</p>
+
+<div class="notice">This is a plain-language starting draft covering how ShiftGuard actually works today. Have a lawyer review and adapt it to your jurisdiction before relying on it commercially.</div>
+
+<h2>1. What ShiftGuard is</h2>
+<p>ShiftGuard is a hosted attendance, payroll and workplace-security platform. Each business that signs up ("Account") gets its own isolated workspace: employee records, attendance logs, payroll calculations, leave records, photos and settings belonging to one Account are never visible to another.</p>
+
+<h2>2. Accounts and sign-up</h2>
+<p>You must provide accurate information when requesting an Account. New Accounts may be reviewed and approved before activation. You're responsible for keeping your sign-in credentials confidential and for all activity under your Account, including actions taken by admin users you create.</p>
+
+<h2>3. Acceptable use</h2>
+<ul>
+  <li>Only enter employee data you're authorized to collect and process under applicable employment and privacy law.</li>
+  <li>Don't use the photo check-in feature to collect biometric data beyond a simple identity photo without the legal basis your jurisdiction requires.</li>
+  <li>Don't attempt to access another Account's data, disrupt the service, or reverse-engineer it.</li>
+  <li>Don't use the kiosk or admin tools to violate your employees' statutory rights (wage, hour, or data-protection law).</li>
+</ul>
+
+<h2>4. Your data</h2>
+<p>You own the data you put into your Account. We store it to provide the service and don't use it to train models or sell it. See the <a href="/privacy">Privacy Policy</a> for details on what's collected and how it's protected.</p>
+
+<h2>5. The AI assistant</h2>
+<p>Where enabled, each Account's AI assistant can read that Account's own attendance, employee, leave and payroll data to answer questions. It cannot change data, and it cannot see any other Account's data. Assistant responses are generated automatically and may be wrong — verify anything consequential (like a salary figure) against the underlying records before acting on it.</p>
+
+<h2>6. Payment and plans</h2>
+<p>Paid plans, where applicable, are billed in advance on a recurring basis as described at checkout. You can cancel at any time; access continues until the end of the current billing period. Fees are non-refundable except where required by law.</p>
+
+<h2>7. Service availability</h2>
+<p>We aim for high availability but don't guarantee uninterrupted access. We take reasonable steps to back up Account data, but you're encouraged to export your own backups periodically from Settings.</p>
+
+<h2>8. Suspension and termination</h2>
+<p>We may suspend or terminate an Account for violating these terms, non-payment, or suspected misuse. You may stop using the service and request deletion of your Account at any time by contacting us.</p>
+
+<h2>9. Limitation of liability</h2>
+<p>The service is provided "as is." To the maximum extent permitted by law, we aren't liable for indirect, incidental, or consequential damages arising from your use of the service, including payroll calculation errors — always review calculated amounts before paying employees.</p>
+
+<h2>10. Changes to these terms</h2>
+<p>We may update these terms from time to time. Continued use of the service after a change constitutes acceptance of the updated terms.</p>
+
+<h2>11. Contact</h2>
+<p>Questions about these terms can be sent through the in-app support option available to every Account.</p>
+{% endblock %}

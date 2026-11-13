@@ -38,6 +38,7 @@ SEED_FACEFIT          = os.getenv('SEED_FACEFIT', '').strip().lower() in ('1', '
 FACEFIT_ADMIN_EMAIL    = os.getenv('FACEFIT_ADMIN_EMAIL', 'facefit@shiftguard.app')
 FACEFIT_ADMIN_PASSWORD = os.getenv('FACEFIT_ADMIN_PASSWORD', '')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
+LEGAL_UPDATED = 'November 13, 2026'
 
 def _secret_key():
     """SECRET_KEY from the environment, else a random key generated once and

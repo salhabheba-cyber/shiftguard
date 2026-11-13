@@ -269,6 +269,16 @@ def home():
     return render_template('landing.html', theme=dict(config.DEFAULT_THEME), user=user,
                            account=g.get('account'))
 
+@app.route('/terms')
+def terms_page():
+    return render_template('terms.html', title='Terms of Service', year=date.today().year,
+                           updated=config.LEGAL_UPDATED)
+
+@app.route('/privacy')
+def privacy_page():
+    return render_template('privacy.html', title='Privacy Policy', year=date.today().year,
+                           updated=config.LEGAL_UPDATED)
+
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
     d = request.get_json(silent=True) or {}
@@ -882,6 +892,33 @@ def api_add_user():
         return jsonify({'success':True,'message':'User created'})
     except Exception as e:
         return jsonify({'success':False,'message':str(e)}), 500
+
+@app.route('/api/admin/users/<int:aid>', methods=['PUT'])
+@api_login_required
+def api_update_user(aid):
+    target = database.get_admin_by_id(aid)
+    if not target:
+        return jsonify({'success':False,'message':'User not found'}), 404
+    d = request.get_json(silent=True) or {}
+    kw = {}
+    if 'email' in d:
+        email = (d.get('email') or '').strip()
+        if email and accounts.email_in_use(email, except_account=g.account['id'], except_username=target['username']):
+            return jsonify({'success':False,'message':'That email is already registered'}), 400
+        kw['email'] = email or None
+    if 'role' in d:
+        kw['role'] = d['role']
+    if 'is_active' in d:
+        is_active = bool(d['is_active'])
+        if not is_active:
+            if target['username'] == current_user.username:
+                return jsonify({'success':False,'message':"You can't deactivate your own account"}), 400
+            if database.count_active_admins(exclude_id=aid) == 0:
+                return jsonify({'success':False,'message':'An account needs at least one active admin'}), 400
+        kw['is_active'] = is_active
+    database.update_admin(aid, **kw)
+    accounts.reindex_account(g.account['id'])
+    return jsonify({'success':True,'message':'User updated'})
 
 @app.route('/api/admin/account-email', methods=['POST'])
 @api_login_required

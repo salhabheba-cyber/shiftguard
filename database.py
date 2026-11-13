@@ -834,3 +834,21 @@ def change_password(username, current_pw, new_pw):
 
 def get_all_admins():
     return q('SELECT id,username,email,role,branch_id,is_active,last_login FROM admin_users ORDER BY username')
+
+def get_admin_by_id(aid):
+    r = q('SELECT * FROM admin_users WHERE id=?', (aid,))
+    return r[0] if r else None
+
+def count_active_admins(exclude_id=None):
+    if exclude_id:
+        return q('SELECT COUNT(*) AS n FROM admin_users WHERE is_active=1 AND id!=?', (exclude_id,))[0]['n']
+    return q('SELECT COUNT(*) AS n FROM admin_users WHERE is_active=1')[0]['n']
+
+def update_admin(aid, email=None, role=None, is_active=None):
+    sets, vals = [], []
+    if email is not None: sets.append('email=?');     vals.append(_clean_email(email))
+    if role  is not None: sets.append('role=?');       vals.append(role)
+    if is_active is not None: sets.append('is_active=?'); vals.append(1 if is_active else 0)
+    if not sets: return
+    vals.append(aid)
+    run(f"UPDATE admin_users SET {','.join(sets)} WHERE id=?", vals)

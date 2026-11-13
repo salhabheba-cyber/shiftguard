@@ -380,6 +380,8 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
 <footer><div class="wrap"><a class="brand" href="/"><img src="/static/images/brand/shiftguard-mark.svg" alt="" style="width:30px;height:30px"><b style="font-size:1.1rem">Shift<span>Guard</span></b></a>
   <div style="display:flex;align-items:center;gap:1.3rem;flex-wrap:wrap">
     <span>© {{ year }} ShiftGuard · Attendance · Payroll · Security</span>
+    <a href="/terms" class="owner-aside">Terms</a>
+    <a href="/privacy" class="owner-aside">Privacy</a>
     <a href="#" id="owner-link" class="owner-aside">👑 Owner sign in</a>
   </div>
 </div></footer>
@@ -418,6 +420,10 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
           <div class="fg"><label for="u-email">Email</label><input id="u-email" type="email" autocomplete="email" placeholder="you@company.com" required></div>
           <div class="fg"><label for="u-pw">Password <span>(at least 8 characters)</span></label><input id="u-pw" type="password" autocomplete="new-password" required></div>
           <input class="hp" id="u-website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.82rem;color:var(--mut);margin:0 0 1rem;cursor:pointer">
+            <input type="checkbox" id="u-agree" required style="margin-top:.2rem">
+            <span>I agree to the <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a></span>
+          </label>
           <button class="go" type="submit" id="go-up">Request account</button>
           <p class="note">We review each request. You can sign in once your account is approved.</p>
         </form>
@@ -601,6 +607,9 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:1
     function v(id){ return document.getElementById(id).value.trim(); }
     if (!v('u-business') || !v('u-email') || !document.getElementById('u-pw').value) {
       err.textContent = 'Enter your business name, email and a password'; err.classList.add('show'); return;
+    }
+    if (!document.getElementById('u-agree').checked) {
+      err.textContent = 'Please agree to the Terms of Service and Privacy Policy'; err.classList.add('show'); return;
     }
     goUp.disabled = true; goUp.textContent = 'Sending…';
     try {

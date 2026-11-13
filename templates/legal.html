@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ title }} — ShiftGuard</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,700;0,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --o:#FF6A00;--b:#2563EB;--ink:#050B1F;--txt:#E6ECF8;--mut:#93A4C8;--line:rgba(96,140,255,.18);
+  --display:'Poppins',Inter,'Segoe UI',Arial,sans-serif;--sans:Inter,'Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);color:var(--txt);background:var(--ink);line-height:1.7}
+a{color:var(--o)}
+.wrap{max-width:760px;margin:0 auto;padding:0 24px}
+.nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(16px);background:rgba(5,11,31,.75);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:.6rem;height:64px}
+.nav img{width:32px;height:32px}
+.nav b{font:800 italic 1.2rem var(--display);color:#fff}
+.nav b span{color:var(--o)}
+main{padding:3rem 0 5rem}
+h1{font:700 clamp(1.6rem,3.2vw,2.3rem) var(--display);color:#fff;margin-bottom:.4rem;letter-spacing:-.5px}
+.updated{color:var(--mut);font-size:.85rem;margin-bottom:2.2rem}
+h2{font:600 1.2rem var(--display);color:#fff;margin:2rem 0 .7rem}
+p,li{color:#C9D4EC;font-size:.96rem}
+ul,ol{padding-left:1.4rem;margin-bottom:1rem}
+li{margin-bottom:.4rem}
+p{margin-bottom:1rem}
+.notice{margin:2rem 0;padding:1rem 1.2rem;border-radius:12px;background:rgba(255,106,0,.08);border:1px solid rgba(255,106,0,.3);font-size:.85rem;color:#FFD9B3}
+footer{border-top:1px solid var(--line);padding:1.6rem 0;color:var(--mut);font-size:.82rem;text-align:center}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a href="/" style="display:flex;align-items:center;gap:.5rem;text-decoration:none">
+    <img src="/static/images/brand/shiftguard-mark.svg" alt="">
+    <b>Shift<span>Guard</span></b>
+  </a>
+</div></header>
+<main class="wrap">
+  {% block content %}{% endblock %}
+</main>
+<footer>© {{ year }} ShiftGuard · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/">Home</a></footer>
+</body>
+</html>

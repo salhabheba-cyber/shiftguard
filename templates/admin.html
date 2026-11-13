@@ -489,7 +489,7 @@ body{font-family:var(--font)}
           <button class="btn btn-primary btn-sm" onclick="openAddAdmin()">➕ Add Admin</button>
         </div>
         <div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th></tr></thead>
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Branch</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="admin-tbody"></tbody>
         </table></div>
       </div>
@@ -668,6 +668,26 @@ body{font-family:var(--font)}
   <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
     <button class="btn btn-outline" onclick="closeM('admin-modal')">Cancel</button>
     <button class="btn btn-primary" onclick="saveAdmin()">💾 Add</button>
+  </div>
+</div>
+</div>
+
+<!-- Edit Admin -->
+<div id="edit-admin-modal" class="modal">
+<div class="modal-box sm">
+  <div class="modal-head"><h3>✏️ Edit Admin User</h3><button class="modal-close" onclick="closeM('edit-admin-modal')">&times;</button></div>
+  <input type="hidden" id="eadm-id">
+  <div class="form-group"><label>Username</label><input type="text" id="eadm-u" disabled></div>
+  <div class="form-group"><label>Sign-in Email</label><input type="email" id="eadm-email" placeholder="name@company.com"></div>
+  <div class="form-group"><label>Role</label>
+    <select id="eadm-role"><option value="admin">Admin</option><option value="manager">Branch Manager</option><option value="superadmin">Super Admin</option></select>
+  </div>
+  <label style="display:flex;align-items:center;gap:.5rem;font-size:.88rem;cursor:pointer;margin:.3rem 0 1rem">
+    <input type="checkbox" id="eadm-active"> Active (unchecking blocks this admin from signing in)
+  </label>
+  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+    <button class="btn btn-outline" onclick="closeM('edit-admin-modal')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveAdminEdit()">💾 Save</button>
   </div>
 </div>
 </div>
