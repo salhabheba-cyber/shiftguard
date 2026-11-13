@@ -241,12 +241,13 @@
 
 <!-- Reset password -->
 <div id="m-reset" class="modal"><div class="modal-box sm">
-  <div class="modal-head"><h3>🔑 Reset password</h3><button class="modal-close" onclick="closeM('m-reset')" aria-label="Close">&times;</button></div>
-  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">New password for <strong id="r-user"></strong> at <strong id="r-acc"></strong>.</p>
-  <div class="form-group"><label for="r-pw">New password (min 8)</label><input id="r-pw" type="text" autocomplete="off"></div>
+  <div class="modal-head"><h3>🔑 Edit admin user</h3><button class="modal-close" onclick="closeM('m-reset')" aria-label="Close">&times;</button></div>
+  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem"><strong id="r-user"></strong> at <strong id="r-acc"></strong>.</p>
+  <div class="form-group"><label for="r-email">Sign-in email</label><input id="r-email" type="email" autocomplete="off"></div>
+  <div class="form-group"><label for="r-pw">New password (min 8, leave blank to keep current)</label><input id="r-pw" type="text" autocomplete="off"></div>
   <div style="display:flex;gap:.5rem;justify-content:flex-end">
     <button class="btn btn-outline" onclick="closeM('m-reset')">Cancel</button>
-    <button class="btn btn-primary" onclick="doReset()">Reset</button>
+    <button class="btn btn-primary" onclick="saveAdminEdit()">Save</button>
   </div>
 </div></div>
 

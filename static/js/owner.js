@@ -1,5 +1,5 @@
 // ShiftGuard — Owner dashboard
-var ACC = [], FIRST = null, RESET = null;
+var ACC = [], FIRST = null, RESET = null, CUR_ADMINS = [];
 
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -197,10 +197,11 @@ async function openDetail(id) {
   $('d-admins').innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
   openM('m-detail');
   var d = await api('/api/owner/accounts/' + id + '/admins');
-  $('d-admins').innerHTML = (d.admins || []).map(function (u) {
+  CUR_ADMINS = d.admins || [];
+  $('d-admins').innerHTML = CUR_ADMINS.map(function (u) {
     return '<tr><td><strong>' + esc(u.username) + '</strong></td><td>' + esc(u.email || '—') + '</td><td>' + esc(u.role) +
-      '</td><td style="font-size:.8rem">' + when(u.last_login) + '</td><td><button class="btn btn-outline btn-xs" data-u="' +
-      esc(u.username) + '" onclick="openReset(' + id + ',this.dataset.u)">Reset password</button></td></tr>';
+      '</td><td style="font-size:.8rem">' + when(u.last_login) + '</td><td><button class="btn btn-outline btn-xs" ' +
+      'onclick="openEditAdmin(' + id + ',' + u.id + ')">Edit</button></td></tr>';
   }).join('') || '<tr><td colspan="5" class="empty">No admin users</td></tr>';
 }
 async function saveDetail() {
@@ -217,14 +218,20 @@ async function deleteAccount() {
   if (done(d, load)) closeM('m-detail');
 }
 
-function openReset(id, username) {
-  RESET = { id: id, username: username };
-  $('r-user').textContent = username; $('r-acc').textContent = byId(id).name; $('r-pw').value = '';
-  openM('m-reset'); setTimeout(function () { $('r-pw').focus(); }, 50);
+function openEditAdmin(accId, adminId) {
+  var u = CUR_ADMINS.find(function (x) { return x.id === adminId; });
+  if (!u) return;
+  RESET = { id: accId, adminId: adminId, username: u.username };
+  $('r-user').textContent = u.username; $('r-acc').textContent = byId(accId).name;
+  $('r-email').value = u.email || ''; $('r-pw').value = '';
+  openM('m-reset'); setTimeout(function () { $('r-email').focus(); }, 50);
 }
-async function doReset() {
-  var d = await api('/api/owner/accounts/' + RESET.id + '/reset-password', 'POST', { username: RESET.username, password: $('r-pw').value });
-  if (done(d)) closeM('m-reset');
+async function saveAdminEdit() {
+  var body = { email: gv('r-email') };
+  var pw = $('r-pw').value;
+  if (pw) body.password = pw;
+  var d = await api('/api/owner/accounts/' + RESET.id + '/admins/' + RESET.adminId, 'PUT', body);
+  if (done(d)) { closeM('m-reset'); openDetail(RESET.id); }
 }
 
 async function saveProfile() {

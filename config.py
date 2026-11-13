@@ -37,6 +37,10 @@ OWNER_RESET    = os.getenv('OWNER_RESET', '').strip().lower() in ('1', 'true', '
 SEED_FACEFIT          = os.getenv('SEED_FACEFIT', '').strip().lower() in ('1', 'true', 'yes')
 FACEFIT_ADMIN_EMAIL    = os.getenv('FACEFIT_ADMIN_EMAIL', 'facefit@shiftguard.app')
 FACEFIT_ADMIN_PASSWORD = os.getenv('FACEFIT_ADMIN_PASSWORD', '')
+# One-time reset of MySpa's (the first/legacy account) admin sign-in email
+# and password. Set both on next boot, then turn them back off.
+MYSPA_ADMIN_EMAIL    = os.getenv('MYSPA_ADMIN_EMAIL', '')
+MYSPA_ADMIN_PASSWORD = os.getenv('MYSPA_ADMIN_PASSWORD', '')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
 LEGAL_UPDATED = 'November 13, 2026'
 

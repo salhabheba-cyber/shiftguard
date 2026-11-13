@@ -180,6 +180,16 @@ def init_platform():
                     database.set_setting(f'theme_{k}', v)
             logger.warning(f"Seeded FaceFit Studio account ({config.FACEFIT_ADMIN_EMAIL})")
 
+    if config.MYSPA_ADMIN_EMAIL and config.MYSPA_ADMIN_PASSWORD:
+        acc = get_account(first_account_id())
+        if acc and acc['db_file']:
+            with database.using(db_path(acc)):
+                admins = database.get_all_admins()
+                if admins:
+                    database.set_admin_email(admins[0]['username'], config.MYSPA_ADMIN_EMAIL)
+                    database.set_admin_password(admins[0]['username'], config.MYSPA_ADMIN_PASSWORD)
+                    logger.warning(f"MySpa admin credentials reset via MYSPA_ADMIN_EMAIL to {config.MYSPA_ADMIN_EMAIL}")
+
     rebuild_index()
 
 def first_account_id():

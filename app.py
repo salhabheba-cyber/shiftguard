@@ -1582,6 +1582,29 @@ def api_owner_delete(aid):
 def api_owner_admins(aid):
     return _ok(admins=accounts.account_admins(aid))
 
+@app.route('/api/owner/accounts/<int:aid>/admins/<int:admin_id>', methods=['PUT'])
+@owner_required
+def api_owner_update_admin(aid, admin_id):
+    acc = accounts.get_account(aid)
+    if not acc or not acc['db_file']: return _err('Account not found', 404)
+    d = request.get_json(silent=True) or {}
+    with database.using(accounts.db_path(acc)):
+        target = database.get_admin_by_id(admin_id)
+        if not target: return _err('Admin user not found', 404)
+        if 'email' in d:
+            email = (d.get('email') or '').strip()
+            if email and ('@' not in email or '.' not in email.split('@')[-1]):
+                return _err('Enter a valid email address')
+            if email and accounts.email_in_use(email, except_account=aid, except_username=target['username']):
+                return _err('That email is already registered')
+            database.update_admin(admin_id, email=email or None)
+        if d.get('password'):
+            if len(d['password']) < 8: return _err('Password must be at least 8 characters')
+            database.set_admin_password(target['username'], d['password'])
+    accounts.reindex_account(aid)
+    accounts.log('admin_edited', current_user.email, aid, _client_ip(), target['username'])
+    return _ok(message='Admin user updated')
+
 @app.route('/api/owner/leave-account', methods=['POST'])
 @owner_required
 def api_owner_leave():
