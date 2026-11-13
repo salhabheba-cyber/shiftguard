@@ -361,6 +361,40 @@ def request_signup(name, contact_name, email, phone, password, ip=''):
     log('signup_request', email.strip().lower(), aid, ip, name.strip())
     return aid, None
 
+TEMPLATE_SETTINGS_KEYS = [
+    'theme_primary', 'theme_secondary', 'theme_accent', 'theme_dark', 'theme_text',
+    'theme_font', 'theme_dark_mode', 'photo_autodelete_enabled', 'photo_retention_days', 'backup_keep',
+]
+
+def _apply_template(new_db_path):
+    """Copy MySpa's (the first/legacy account's) current leave types, blocked
+    sites and style settings into a freshly provisioned account, so new
+    accounts start out shaped like MySpa does today instead of the generic
+    factory defaults — without copying any of MySpa's own business data
+    (employees, attendance, admin logins, its own business name or logo)."""
+    template_acc = get_account(first_account_id())
+    if not template_acc or not template_acc['db_file']:
+        return
+    template_path = db_path(template_acc)
+    if not os.path.exists(template_path) or os.path.abspath(template_path) == os.path.abspath(new_db_path):
+        return
+    with database.using(template_path):
+        settings = {k: v for k, v in
+                    ((k, database.get_setting(k)) for k in TEMPLATE_SETTINGS_KEYS) if v is not None}
+        leave_types   = database.q('SELECT name,is_paid,color,is_active FROM leave_types')
+        blocked_sites = database.q('SELECT domain,category,is_active FROM blocked_sites')
+    with database.using(new_db_path):
+        for k, v in settings.items():
+            database.set_setting(k, v)
+        database.run('DELETE FROM leave_types')
+        for lt in leave_types:
+            database.run('INSERT INTO leave_types (name,is_paid,color,is_active) VALUES (?,?,?,?)',
+                          (lt['name'], lt['is_paid'], lt['color'], lt['is_active']))
+        database.run('DELETE FROM blocked_sites')
+        for bs in blocked_sites:
+            database.run('INSERT INTO blocked_sites (domain,category,is_active) VALUES (?,?,?)',
+                          (bs['domain'], bs['category'], bs['is_active']))
+
 def _provision(aid, admin_email, password=None, password_hash=None, admin_username='admin'):
     """Create the database, photo folder and first admin for an account."""
     acc = get_account(aid)
@@ -375,6 +409,7 @@ def _provision(aid, admin_email, password=None, password_hash=None, admin_userna
         database.run("UPDATE branches SET address=? WHERE id=(SELECT MIN(id) FROM branches)", (acc['name'],))
         database.create_admin(admin_username or 'admin', password, role='superadmin', email=admin_email,
                               password_hash=password_hash)
+    _apply_template(path)
     os.makedirs(os.path.join(config.BASE_DIR, 'static', photo_dir), exist_ok=True)
     trial_ends = (datetime.now() + timedelta(days=config.TRIAL_DAYS)).strftime('%Y-%m-%d %H:%M:%S') \
                  if config.BILLING_ENABLED else None
