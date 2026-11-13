@@ -40,6 +40,17 @@ FACEFIT_ADMIN_PASSWORD = os.getenv('FACEFIT_ADMIN_PASSWORD', '')
 LOG_FILE      = os.path.join(LOGS_DIR, 'system.log')
 LEGAL_UPDATED = 'November 13, 2026'
 
+# ── BILLING (Stripe) ─────────────────────────────────────────────────────────
+# All blank by default: billing is fully wired but inert until real keys are
+# set, so nothing breaks (and nothing is charged) before you're ready.
+STRIPE_SECRET_KEY      = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET  = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+# The Stripe Price ID (price_...) for the single recurring subscription plan.
+STRIPE_PRICE_ID        = os.getenv('STRIPE_PRICE_ID', '')
+BILLING_ENABLED        = bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID)
+TRIAL_DAYS             = int(os.getenv('TRIAL_DAYS', '14'))
+
 def _secret_key():
     """SECRET_KEY from the environment, else a random key generated once and
     kept in data/. (A key written in the source code would let anyone who has

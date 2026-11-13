@@ -62,7 +62,7 @@ function switchTab(name){
   if(name==='notes')loadNotes();
   if(name==='salary')populateSalEmpSel();
   if(name==='security'){loadBlocked();loadNetworkInfo();}
-  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();load2FAStatus();}
+  if(name==='settings'){loadAdmins();loadPhotoSettings();loadBackups();load2FAStatus();loadBillingStatus();}
   if(name==='photos'){loadPhotoSettings();loadPhotos();}
 }
 
@@ -450,6 +450,38 @@ async function disable2FA(){
   if(!pw)return msg('err','Enter your current password');
   var d=await api('/api/admin/2fa/disable','POST',{password:pw});
   if(d.success){msg('ok',d.message);sv('tfa-disable-pw','');load2FAStatus();}else msg('err',d.message);
+}
+async function loadBillingStatus(){
+  var d=await api('/api/billing/status');
+  var txt=document.getElementById('billing-status-text');
+  var subBtn=document.getElementById('billing-subscribe-btn'), mgrBtn=document.getElementById('billing-manage-btn');
+  if(!d.enabled){
+    txt.textContent='Billing isn\'t set up yet.';
+    subBtn.style.display='none'; mgrBtn.style.display='none';
+    return;
+  }
+  if(d.status==='active'){
+    txt.textContent='Your subscription is active.';
+    subBtn.style.display='none'; mgrBtn.style.display='';
+  }else if(d.status==='trialing'){
+    var until=d.trial_ends_at?new Date(d.trial_ends_at.replace(' ','T')).toLocaleDateString():'soon';
+    txt.textContent='You\'re on a free trial until '+until+'.';
+    subBtn.style.display=''; mgrBtn.style.display='none';
+  }else if(d.status==='past_due'){
+    txt.textContent='Your last payment failed. Please update your payment method.';
+    subBtn.style.display='none'; mgrBtn.style.display='';
+  }else{
+    txt.textContent='You don\'t have an active subscription.';
+    subBtn.style.display=''; mgrBtn.style.display=d.has_customer?'':'none';
+  }
+}
+async function startCheckout(){
+  var d=await api('/api/billing/checkout','POST',{});
+  if(d.success&&d.url)location.href=d.url;else msg('err',d.message||'Could not start checkout');
+}
+async function openBillingPortal(){
+  var d=await api('/api/billing/portal','POST',{});
+  if(d.success&&d.url)location.href=d.url;else msg('err',d.message||'Could not open billing portal');
 }
 async function loadBackups(){
   var d=await api('/api/admin/backups');var tb=document.getElementById('backups-tbody');if(!tb)return;

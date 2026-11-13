@@ -12,7 +12,7 @@ module keeps the platform-level records in a separate file
 """
 import os, re, shutil, sqlite3, logging
 from contextlib import contextmanager
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import config, database
 
 logger = logging.getLogger('shiftguard')
@@ -110,6 +110,12 @@ def init_platform():
         ('totp_secret',  'TEXT'),
         ('totp_enabled', 'INTEGER DEFAULT 0'),
         ('backup_codes', 'TEXT'),
+    ])
+    _ensure_columns('accounts', [
+        ('stripe_customer_id',     'TEXT'),
+        ('stripe_subscription_id', 'TEXT'),
+        ('subscription_status',    'TEXT'),   # NULL | trialing | active | past_due | canceled
+        ('trial_ends_at',          'TEXT'),
     ])
 
     # The original database becomes account #1, left exactly where it is.
@@ -332,8 +338,11 @@ def _provision(aid, admin_email, password=None, password_hash=None):
         database.create_admin('admin', password, role='superadmin', email=admin_email,
                               password_hash=password_hash)
     os.makedirs(os.path.join(config.BASE_DIR, 'static', photo_dir), exist_ok=True)
-    _run('''UPDATE accounts SET db_file=?, photo_dir=?, status='active', approved_at=?, signup_pw_hash=NULL
-            WHERE id=?''', (rel, photo_dir, _now(), aid))
+    trial_ends = (datetime.now() + timedelta(days=config.TRIAL_DAYS)).strftime('%Y-%m-%d %H:%M:%S') \
+                 if config.BILLING_ENABLED else None
+    _run('''UPDATE accounts SET db_file=?, photo_dir=?, status='active', approved_at=?, signup_pw_hash=NULL,
+            subscription_status=?, trial_ends_at=? WHERE id=?''',
+         (rel, photo_dir, _now(), 'trialing' if config.BILLING_ENABLED else None, trial_ends, aid))
     reindex_account(aid)
 
 def create_account(name, contact_name, email, phone, password):
@@ -432,6 +441,19 @@ def account_stats(acc):
     except Exception as e:
         logger.error(f"Stats failed for account {acc['id']}: {e}")
     return out
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BILLING (Stripe) ──────────────────────────────────────────────────────────────
+def set_stripe_customer(aid, customer_id):
+    _run('UPDATE accounts SET stripe_customer_id=? WHERE id=?', (customer_id, aid))
+
+def get_account_by_stripe_customer(customer_id):
+    r = _q('SELECT * FROM accounts WHERE stripe_customer_id=?', (customer_id,))
+    return r[0] if r else None
+
+def set_subscription_status(aid, subscription_id, status):
+    _run('UPDATE accounts SET stripe_subscription_id=?, subscription_status=? WHERE id=?',
+         (subscription_id, status, aid))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # OWNER LOGIN

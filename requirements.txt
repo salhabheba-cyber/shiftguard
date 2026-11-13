@@ -9,3 +9,4 @@ fpdf2
 gunicorn
 anthropic>=2.8.0
 pyotp>=2.9.0
+stripe>=11.1.0

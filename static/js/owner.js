@@ -98,13 +98,16 @@ function renderAccounts() {
     } else {
       act += '<button class="btn btn-outline btn-xs" onclick="openDetail(' + a.id + ')">Manage</button>';
     }
+    var billing = a.subscription_status
+      ? '<span class="badge ' + (a.subscription_status === 'active' ? 'b-green' : a.subscription_status === 'trialing' ? 'b-pending' : 'b-red') + '">' + esc(a.subscription_status) + '</span>'
+      : '<span style="color:var(--muted);font-size:.8rem">—</span>';
     return '<tr><td><div class="acc-name">' + esc(a.name) + (a.id === FIRST ? ' <span class="badge b-blue">Original</span>' : '') +
       '</div><div class="acc-sub">' + esc(a.slug) + '</div></td>' +
       '<td>' + esc(a.contact_name || '—') + '<div class="acc-sub">' + esc(a.phone || '') + '</div></td>' +
       '<td style="font-size:.84rem">' + esc(a.admin_email || a.contact_email || '—') + '</td>' +
-      '<td>' + badge(a.status) + '</td><td>' + a.employees + '</td>' +
+      '<td>' + badge(a.status) + '</td><td>' + billing + '</td><td>' + a.employees + '</td>' +
       '<td style="font-size:.8rem">' + when(a.created_at) + '</td><td><div class="actions">' + act + '</div></td></tr>';
-  }).join('') || '<tr><td colspan="7" class="empty">No accounts match</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">No accounts match</td></tr>';
 }
 
 function renderRequests() {

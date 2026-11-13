@@ -6,7 +6,7 @@ from functools import wraps
 from datetime import datetime, timedelta, date
 import logging, os, sys, shutil, io, base64, calendar, re, time
 from logging.handlers import RotatingFileHandler
-import config, database, network_manager, reports, accounts, assistant, twofa
+import config, database, network_manager, reports, accounts, assistant, twofa, billing
 
 # ── TIMEZONE FIX ──────────────────────────────────────────────────────────────
 os.environ['TZ'] = 'Asia/Beirut'
@@ -1150,6 +1150,41 @@ def api_download_backup(fname):
         return ('Not found', 404)
     return send_file(path, as_attachment=True, download_name=fname)
 
+# ── BILLING (Stripe) ─────────────────────────────────────────────────────────────
+@app.route('/api/billing/status')
+@api_login_required
+def api_billing_status():
+    acc = g.account
+    return jsonify({
+        'enabled':       config.BILLING_ENABLED,
+        'status':        acc.get('subscription_status'),
+        'trial_ends_at': acc.get('trial_ends_at'),
+        'has_customer':  bool(acc.get('stripe_customer_id')),
+    })
+
+@app.route('/api/billing/checkout', methods=['POST'])
+@api_login_required
+def api_billing_checkout():
+    base = request.url_root.rstrip('/')
+    url, err = billing.create_checkout_session(g.account,
+        success_url=f'{base}/admin?billing=success', cancel_url=f'{base}/admin?billing=cancelled')
+    if err: return jsonify({'success':False,'message':err}), 400
+    return jsonify({'success':True,'url':url})
+
+@app.route('/api/billing/portal', methods=['POST'])
+@api_login_required
+def api_billing_portal():
+    base = request.url_root.rstrip('/')
+    url, err = billing.create_portal_session(g.account, return_url=f'{base}/admin')
+    if err: return jsonify({'success':False,'message':err}), 400
+    return jsonify({'success':True,'url':url})
+
+@app.route('/api/billing/webhook', methods=['POST'])
+def api_billing_webhook():
+    event, err = billing.handle_webhook_event(request.get_data(), request.headers.get('Stripe-Signature',''))
+    if err: return jsonify({'error':err}), 400
+    return jsonify({'received':True})
+
 # ── REPORTS (daily / monthly, each exportable as Excel, Word or PDF) ───────────
 EXPORT_MIME = {
     'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1404,7 +1439,8 @@ def api_owner_overview():
     for acc in accounts.list_accounts():
         st = accounts.account_stats(acc)
         rows.append({k: acc[k] for k in ('id','name','slug','status','contact_name','contact_email','phone',
-                                         'notes','created_at','approved_at','last_activity')} | st)
+                                         'notes','created_at','approved_at','last_activity',
+                                         'subscription_status','trial_ends_at')} | st)
         if acc['status'] in ('active','suspended','pending'):
             totals[acc['status']] += 1
         if acc['status'] in ('active','suspended'):

@@ -517,6 +517,13 @@ body{font-family:var(--font)}
       </div>
 
       <div class="card">
+        <h3 class="card-title">💳 Billing</h3>
+        <p id="billing-status-text" style="color:#64748B;margin-bottom:1rem;font-size:.9rem">Checking status...</p>
+        <button class="btn btn-primary" id="billing-subscribe-btn" style="display:none" onclick="startCheckout()">💳 Subscribe</button>
+        <button class="btn btn-outline" id="billing-manage-btn" style="display:none" onclick="openBillingPortal()">⚙️ Manage Billing</button>
+      </div>
+
+      <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
           <h3 class="card-title" style="margin:0">👮 Admin Users</h3>
           <button class="btn btn-primary btn-sm" onclick="openAddAdmin()">➕ Add Admin</button>
